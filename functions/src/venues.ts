@@ -2,7 +2,8 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions/v2";
-import { GeoPoint, getFirestore } from "firebase-admin/firestore";
+import { Firestore, GeoPoint, getFirestore } from "firebase-admin/firestore";
+import { geohashQueryBounds } from "geofire-common";
 
 /**
  * Set once via:
@@ -39,6 +40,86 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+type Facility = {
+  name: string;
+  address: string;
+  location: GeoPoint;
+  sports: string[];
+  status: "pending" | "approved" | "rejected";
+  photoUrls?: string[];
+};
+
+type RegisteredVenue = {
+  id: string;
+  name: string;
+  address: string;
+  location: GeoPoint;
+  photoUrl: string | null;
+  distanceFromMidpointKm: number;
+};
+
+/**
+ * Finds admin-approved facilities offering `sport` within `SEARCH_RADIUS_METERS`
+ * of `midpoint`, closest first. Same geohash-bounds-then-haversine-refine
+ * pattern as matching.ts's findCandidateWithinRadius — geohash bounds
+ * over-select a bounding box, so results are re-filtered with the exact
+ * distance and only the true radius is kept.
+ */
+async function findRegisteredFacilities(
+  db: Firestore,
+  midpoint: GeoPoint,
+  sport: string,
+  maxResults: number
+): Promise<RegisteredVenue[]> {
+  const center: [number, number] = [midpoint.latitude, midpoint.longitude];
+  const bounds = geohashQueryBounds(center, SEARCH_RADIUS_METERS);
+
+  const snapshots = await Promise.all(
+    bounds.map(([start, end]) =>
+      db
+        .collection("facilities")
+        .where("status", "==", "approved")
+        .where("sports", "array-contains", sport)
+        .orderBy("geohash")
+        .startAt(start)
+        .endAt(end)
+        .get()
+    )
+  );
+
+  const seen = new Set<string>();
+  const candidates: (RegisteredVenue & { _sort: number })[] = [];
+
+  for (const snap of snapshots) {
+    for (const docSnap of snap.docs) {
+      if (seen.has(docSnap.id)) continue;
+      seen.add(docSnap.id);
+
+      const facility = docSnap.data() as Facility;
+      const distanceKm = haversineKm(
+        midpoint.latitude,
+        midpoint.longitude,
+        facility.location.latitude,
+        facility.location.longitude
+      );
+      if (distanceKm > SEARCH_RADIUS_METERS / 1000) continue;
+
+      candidates.push({
+        id: docSnap.id,
+        name: facility.name,
+        address: facility.address,
+        location: facility.location,
+        photoUrl: facility.photoUrls?.[0] ?? null,
+        distanceFromMidpointKm: Math.round(distanceKm * 10) / 10,
+        _sort: distanceKm,
+      });
+    }
+  }
+
+  candidates.sort((a, b) => a._sort - b._sort);
+  return candidates.slice(0, maxResults).map(({ _sort, ...venue }) => venue);
+}
+
 type PlacesNearbyResult = {
   place_id: string;
   name: string;
@@ -49,11 +130,12 @@ type PlacesNearbyResult = {
 };
 
 /**
- * Google Maps Platform touchpoint #1 (server-side): once two players are
- * matched, search real venues/grounds around the midpoint of their
- * locations via the Places API "Nearby Search" endpoint, and persist the
- * top results so the app never talks to Places directly (keeps the API key
- * off the client, and lets results be cached/reused across both players).
+ * Once two players are matched, find venues/grounds around the midpoint of
+ * their locations. Admin-approved facilities registered through facility-web
+ * are preferred (they're real, vetted grounds); Google Maps Platform
+ * touchpoint #1 (server-side) — the Places API "Nearby Search" endpoint —
+ * only fills any remaining slots, keeping the API key off the client and
+ * saving quota/cost once enough registered facilities are already found.
  */
 export const onMatchCreated = onDocumentCreated(
   { document: "matches/{matchId}", secrets: [GOOGLE_MAPS_API_KEY] },
@@ -65,6 +147,41 @@ export const onMatchCreated = onDocumentCreated(
 
     const midpoint: GeoPoint = match.midpoint;
     const keyword = SPORT_KEYWORDS[match.sport] ?? match.sport;
+
+    const registered = await findRegisteredFacilities(
+      db,
+      midpoint,
+      match.sport,
+      MAX_VENUE_OPTIONS
+    );
+
+    const batch = db.batch();
+    for (const facility of registered) {
+      const ref = db.collection(`matches/${matchId}/venueOptions`).doc(facility.id);
+      batch.set(ref, {
+        placeId: null,
+        facilityId: facility.id,
+        name: facility.name,
+        address: facility.address,
+        location: facility.location,
+        photoRef: null,
+        photoUrl: facility.photoUrl,
+        rating: null,
+        distanceFromMidpointKm: facility.distanceFromMidpointKm,
+        votes: {},
+        voteCount: 0,
+        source: "registered",
+      });
+    }
+
+    const remaining = MAX_VENUE_OPTIONS - registered.length;
+    if (remaining <= 0) {
+      await batch.commit();
+      logger.info(
+        `Saved ${registered.length} registered venue options for match ${matchId} (Places skipped)`
+      );
+      return;
+    }
 
     const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
     url.searchParams.set("location", `${midpoint.latitude},${midpoint.longitude}`);
@@ -83,21 +200,18 @@ export const onMatchCreated = onDocumentCreated(
       json = (await res.json()) as PlacesNearbyResponse;
     } catch (err) {
       logger.error("Places API request failed", err);
+      await batch.commit();
       return;
     }
 
     if (json.status !== "OK" && json.status !== "ZERO_RESULTS") {
       logger.error("Places API error", json.status, json.error_message);
+      await batch.commit();
       return;
     }
 
-    const results = (json.results ?? []).slice(0, MAX_VENUE_OPTIONS);
-    if (results.length === 0) {
-      logger.warn(`No venues found near match ${matchId}`);
-      return;
-    }
+    const results = (json.results ?? []).slice(0, remaining);
 
-    const batch = db.batch();
     for (const place of results) {
       const ref = db.collection(`matches/${matchId}/venueOptions`).doc(place.place_id);
       const distanceFromMidpointKm = haversineKm(
@@ -109,18 +223,24 @@ export const onMatchCreated = onDocumentCreated(
 
       batch.set(ref, {
         placeId: place.place_id,
+        facilityId: null,
         name: place.name,
         address: place.vicinity ?? null,
         location: new GeoPoint(place.geometry.location.lat, place.geometry.location.lng),
         photoRef: place.photos?.[0]?.photo_reference ?? null,
+        photoUrl: null,
         rating: place.rating ?? null,
         distanceFromMidpointKm: Math.round(distanceFromMidpointKm * 10) / 10,
         votes: {},
         voteCount: 0,
+        source: "places",
       });
     }
+
     await batch.commit();
-    logger.info(`Saved ${results.length} venue options for match ${matchId}`);
+    logger.info(
+      `Saved ${registered.length} registered + ${results.length} Places venue options for match ${matchId}`
+    );
   }
 );
 

@@ -15,6 +15,10 @@ service cloud.firestore {
         && request.auth.uid in get(/databases/$(database)/documents/matches/$(matchId)).data.players;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create, update: if isOwner(userId);
@@ -35,6 +39,44 @@ service cloud.firestore {
         && resource.data.status == 'waiting'
         && request.resource.data.status == 'cancelled';
       allow delete: if false;
+    }
+
+    match /facilities/{facilityId} {
+      // Approved listings are visible to any signed-in client (mirrors the
+      // users/{userId} read policy). Owners can always see their own
+      // pending/rejected drafts; admins can see everything.
+      allow read: if (isSignedIn() && resource.data.status == 'approved')
+        || isAdmin()
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+
+      // Owners self-register; status is always forced to 'pending' on
+      // create — approval can only ever be granted by an admin update,
+      // never by the creator.
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.sports is list
+        && request.resource.data.sports.size() > 0
+        && request.resource.data.location is latlng;
+
+      // Admin can update anything (approve/reject/edit). Owner can only
+      // edit their own doc while it's pending/rejected, cannot change
+      // ownerId, and can only ever move status back to 'pending'
+      // (resubmit-after-rejection flow) — never to 'approved'.
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.ownerId == request.auth.uid
+          && request.resource.data.ownerId == resource.data.ownerId
+          && resource.data.status in ['pending', 'rejected']
+          && request.resource.data.status == 'pending'
+        );
+
+      // Owner can withdraw their own listing unless it's currently live
+      // (approved) — admin can delete/unpublish anything, any time.
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid
+            && resource.data.status != 'approved');
     }
 
     match /matches/{matchId} {

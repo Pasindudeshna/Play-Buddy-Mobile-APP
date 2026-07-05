@@ -36,6 +36,7 @@ type VenueOption = {
   distanceFromMidpointKm: number;
   votes: Record<string, boolean>;
   voteCount: number;
+  source?: "registered" | "places";
 };
 
 type MatchDoc = {
@@ -175,11 +176,18 @@ export default function Venues({ matchId }: VenuesProps) {
                     <View style={styles.venueInfo}>
                       <View style={styles.venueHeaderRow}>
                         <Text style={styles.venueName}>{venue.name}</Text>
-                        {isSelected && (
-                          <View style={styles.selectedBadge}>
-                            <Text style={styles.selectedBadgeText}>Confirmed</Text>
-                          </View>
-                        )}
+                        <View style={{ flexDirection: "row", gap: 6 }}>
+                          {venue.source === "registered" && (
+                            <View style={styles.selectedBadge}>
+                              <Text style={styles.selectedBadgeText}>Registered</Text>
+                            </View>
+                          )}
+                          {isSelected && (
+                            <View style={styles.selectedBadge}>
+                              <Text style={styles.selectedBadgeText}>Confirmed</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                       {venue.address && (
                         <Text style={styles.venueArea}>{venue.address}</Text>

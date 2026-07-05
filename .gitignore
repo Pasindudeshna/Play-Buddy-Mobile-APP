@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Firebase Admin service account key (used by scripts/set-admin-claim.js)
+serviceAccountKey.json
+
 # typescript
 *.tsbuildinfo
 

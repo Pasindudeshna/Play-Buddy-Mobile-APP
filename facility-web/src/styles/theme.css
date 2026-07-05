@@ -1,0 +1,202 @@
+:root {
+  --color-bg: #080909;
+  --color-bg-2: #010101;
+  --color-card: rgba(102, 211, 197, 0.08);
+  --color-card-border: rgba(69, 255, 179, 0.15);
+  --color-mint: #45ffb3;
+  --color-mint-dim: rgba(69, 255, 179, 0.4);
+  --color-turquoise: #27e7d4;
+  --color-white: #ffffff;
+  --color-gray: rgba(255, 255, 255, 0.44);
+  --color-danger: #ff6b6b;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(160deg, var(--color-bg) 0%, #051b1f 100%);
+  color: var(--color-white);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+a {
+  color: var(--color-mint);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.app-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+.brand {
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  font-size: 15px;
+  margin-bottom: 24px;
+}
+
+.brand-b {
+  color: var(--color-mint);
+}
+
+.nav-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.nav-links a,
+.nav-links button {
+  color: var(--color-gray);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.nav-links a.active {
+  color: var(--color-mint);
+}
+
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-card-border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.field label {
+  font-size: 12px;
+  color: var(--color-gray);
+}
+
+.field input,
+.field textarea,
+.field select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--color-white);
+}
+
+.sport-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sport-chip {
+  border: 1.5px solid var(--color-mint-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-white);
+  font-size: 13px;
+}
+
+.sport-chip.selected {
+  background: rgba(69, 255, 179, 0.15);
+  border-color: var(--color-mint);
+}
+
+.btn {
+  border: 1.5px solid var(--color-mint);
+  border-radius: 999px;
+  padding: 10px 22px;
+  background: rgba(69, 255, 179, 0.15);
+  color: var(--color-white);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  background: transparent;
+}
+
+.btn-danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background: transparent;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid;
+}
+
+.badge-pending {
+  color: #ffd166;
+  border-color: #ffd166;
+  background: rgba(255, 209, 102, 0.12);
+}
+
+.badge-approved {
+  color: var(--color-mint);
+  border-color: var(--color-mint);
+  background: rgba(69, 255, 179, 0.12);
+}
+
+.badge-rejected {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background: rgba(255, 107, 107, 0.12);
+}
+
+.error-text {
+  color: var(--color-danger);
+  font-size: 13px;
+  margin: 4px 0 12px;
+}
+
+.empty-text {
+  color: var(--color-gray);
+  text-align: center;
+  margin-top: 32px;
+}
