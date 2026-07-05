@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isMatchPlayer(matchId) {
+      return isSignedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/matches/$(matchId)).data.players;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    match /matchQueue/{ticketId} {
+      // Clients create their own ticket and can cancel it. Only Cloud
+      // Functions (Admin SDK, bypasses rules) may set status:"matched"/
+      // "expired" or write matchId — so match outcomes can't be forged
+      // client-side. See functions/src/matching.ts.
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'waiting';
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && resource.data.status == 'waiting'
+        && request.resource.data.status == 'cancelled';
+      allow delete: if false;
+    }
+
+    match /matches/{matchId} {
+      allow read: if isMatchPlayer(matchId);
+      // Only Cloud Functions (Admin SDK) create/update match documents.
+      allow write: if false;
+
+      match /venueOptions/{venueId} {
+        allow read: if isMatchPlayer(matchId);
+        // Populated by the onMatchCreated Cloud Function; voting goes
+        // through the castVote callable so it can enforce one-vote-per-user
+        // and membership checks server-side. See functions/src/venues.ts.
+        allow write: if false;
+      }
+
+      match /messages/{messageId} {
+        allow read: if isMatchPlayer(matchId);
+        allow create: if isMatchPlayer(matchId)
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

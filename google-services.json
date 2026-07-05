@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "663943080081",
+    "project_id": "playbuddy-64a38",
+    "storage_bucket": "playbuddy-64a38.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:663943080081:android:8a2a5fd596a217c26df730",
+        "android_client_info": {
+          "package_name": "com.playbuddy.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAL8n0daaB9MXF6H5w4d-8U1rl1NVL6GWY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
