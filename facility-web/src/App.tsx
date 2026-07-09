@@ -3,6 +3,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "./lib/firebase";
 import { useAuth } from "./context/AuthContext";
 import LoginPage from "./routes/LoginPage";
+import HomePage from "./routes/HomePage";
 import OwnerDashboard from "./routes/OwnerDashboard";
 import FacilityFormPage from "./routes/FacilityFormPage";
 import AdminPendingQueue from "./routes/AdminPendingQueue";
@@ -15,9 +16,12 @@ function Nav() {
   if (!user) return null;
 
   return (
-    <div className="nav-bar">
+    <div className="topnav">
       <div className="brand">
-        <span className="brand-b">B</span> PLAY BUDDY — FACILITY PORTAL
+        <span className="brand-mark">B</span>
+        <span>Play Buddy</span>
+        <span className="brand-sep">/</span>
+        <span>Facility Portal</span>
       </div>
       <div className="nav-links">
         {isAdmin ? (
@@ -26,9 +30,15 @@ function Nav() {
             <NavLink to="/admin/all">All Facilities</NavLink>
           </>
         ) : (
-          <NavLink to="/dashboard">My Facilities</NavLink>
+          <>
+            <NavLink to="/home">Home</NavLink>
+            <NavLink to="/dashboard">My Grounds</NavLink>
+          </>
         )}
-        <button onClick={() => signOut(auth)}>Sign out</button>
+        <span className="nav-divider" />
+        <button className="signout-btn" onClick={() => signOut(auth)}>
+          Sign out
+        </button>
       </div>
     </div>
   );
@@ -40,6 +50,15 @@ export default function App() {
       <Nav />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+
+        <Route
+          path="/home"
+          element={
+            <RequireAuth>
+              <HomePage />
+            </RequireAuth>
+          }
+        />
 
         <Route
           path="/dashboard"

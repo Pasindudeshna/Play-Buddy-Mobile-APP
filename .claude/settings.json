@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\" //FO CSV)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //PID 912 //F)",
+      "Bash(grep -rn \"brand-b\\\\b\" src/)",
+      "Bash(grep -rn \"nav-bar\" src/)",
+      "WebSearch",
+      "Bash(npx expo *)"
     ]
   }
 }

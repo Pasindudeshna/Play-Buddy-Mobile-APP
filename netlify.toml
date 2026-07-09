@@ -1,0 +1,4 @@
+[build]
+  command = "echo 'No build step needed — this site only serves netlify/functions.'"
+  functions = "netlify/functions"
+  publish = "netlify/public"

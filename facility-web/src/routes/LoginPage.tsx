@@ -5,7 +5,8 @@ import {
   signInWithEmailAndPassword,
   updateProfile,
 } from "firebase/auth";
-import { auth } from "../lib/firebase";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { auth, db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
@@ -20,7 +21,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate(isAdmin ? "/admin" : "/dashboard", { replace: true });
+      navigate(isAdmin ? "/admin" : "/home", { replace: true });
     }
   }, [loading, user, isAdmin, navigate]);
 
@@ -34,6 +35,11 @@ export default function LoginPage() {
         if (name.trim()) {
           await updateProfile(cred.user, { displayName: name.trim() });
         }
+        await setDoc(doc(db, "ground_owners", cred.user.uid), {
+          name: name.trim(),
+          email: cred.user.email ?? email,
+          createdAt: serverTimestamp(),
+        });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -45,60 +51,70 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ maxWidth: 380, margin: "60px auto" }}>
-      <div className="brand">
-        <span className="brand-b">B</span> PLAY BUDDY — FACILITY PORTAL
-      </div>
-      <div className="card">
-        <h2 style={{ marginTop: 0 }}>{mode === "login" ? "Sign in" : "Register your facility"}</h2>
-        <form onSubmit={handleSubmit}>
-          {mode === "signup" && (
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <span className="brand-mark">B</span>
+          <span className="auth-brand-text">Play Buddy — Facility Portal</span>
+        </div>
+
+        <div className="card">
+          <div className="segmented">
+            <button
+              type="button"
+              className={mode === "login" ? "active" : ""}
+              onClick={() => setMode("login")}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              className={mode === "signup" ? "active" : ""}
+              onClick={() => setMode("signup")}
+            >
+              Register
+            </button>
+          </div>
+
+          <h2>{mode === "login" ? "Welcome back" : "Register your facility"}</h2>
+          <p className="meta" style={{ marginBottom: 20 }}>
+            {mode === "login"
+              ? "Sign in to manage your grounds."
+              : "Create an account to list your ground on Play Buddy."}
+          </p>
+
+          <form onSubmit={handleSubmit}>
+            {mode === "signup" && (
+              <div className="field">
+                <label>Your name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} required />
+              </div>
+            )}
             <div className="field">
-              <label>Your name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
+              <label>Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
-          )}
-          <div className="field">
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              minLength={6}
-              required
-            />
-          </div>
-          {error && <div className="error-text">{error}</div>}
-          <button className="btn" type="submit" disabled={busy}>
-            {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
-          </button>
-        </form>
-        <p style={{ marginTop: 16, fontSize: 13 }}>
-          {mode === "login" ? (
-            <>
-              Don't have an account?{" "}
-              <button className="btn-outline" style={{ border: "none", padding: 0 }} onClick={() => setMode("signup")}>
-                Register a facility
-              </button>
-            </>
-          ) : (
-            <>
-              Already registered?{" "}
-              <button className="btn-outline" style={{ border: "none", padding: 0 }} onClick={() => setMode("login")}>
-                Sign in
-              </button>
-            </>
-          )}
-        </p>
+            <div className="field">
+              <label>Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={6}
+                required
+              />
+            </div>
+            {error && <div className="error-text">{error}</div>}
+            <button className="btn" type="submit" disabled={busy} style={{ width: "100%" }}>
+              {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

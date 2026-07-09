@@ -1,6 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { httpsCallable } from "firebase/functions";
 import {
   collection,
   doc,
@@ -10,6 +9,7 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Linking,
   SafeAreaView,
   ScrollView,
@@ -18,7 +18,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { auth, db, functions } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
+import { callMatchApi } from "../lib/matchApi";
 import {
   Border,
   Color,
@@ -34,6 +35,7 @@ type VenueOption = {
   location: { latitude: number; longitude: number };
   rating: number | null;
   distanceFromMidpointKm: number;
+  distanceByPlayerKm?: Record<string, number>;
   votes: Record<string, boolean>;
   voteCount: number;
   source?: "registered" | "places";
@@ -48,8 +50,10 @@ type VenuesProps = {
   matchId?: string;
 };
 
-const castVote = httpsCallable(functions, "castVote");
-const confirmVenue = httpsCallable(functions, "confirmVenue");
+const castVote = (matchId: string, venueId: string) =>
+  callMatchApi("/api/cast-vote", { matchId, venueId });
+const confirmVenue = (matchId: string, venueId: string) =>
+  callMatchApi("/api/confirm-venue", { matchId, venueId });
 
 export default function Venues({ matchId }: VenuesProps) {
   const [loading, setLoading] = useState(true);
@@ -89,7 +93,7 @@ export default function Venues({ matchId }: VenuesProps) {
     if (!matchId || busyVenueId) return;
     setBusyVenueId(venueId);
     try {
-      await castVote({ matchId, venueId });
+      await castVote(matchId, venueId);
     } catch (e: any) {
       alert(e?.message ?? "Couldn't cast vote.");
     } finally {
@@ -101,7 +105,7 @@ export default function Venues({ matchId }: VenuesProps) {
     if (!matchId || busyVenueId) return;
     setBusyVenueId(venueId);
     try {
-      await confirmVenue({ matchId, venueId });
+      await confirmVenue(matchId, venueId);
     } catch (e: any) {
       alert(e?.message ?? "Couldn't confirm venue.");
     } finally {
@@ -173,6 +177,14 @@ export default function Venues({ matchId }: VenuesProps) {
                     key={venue.id}
                     style={[styles.venueCard, isSelected && styles.venueCardSelected]}
                   >
+                    <Image
+                      style={styles.venueMap}
+                      resizeMode="cover"
+                      source={{
+                        uri: `https://staticmap.openstreetmap.de/staticmap.php?center=${venue.location.latitude},${venue.location.longitude}&zoom=15&size=600x240&maptype=mapnik&markers=${venue.location.latitude},${venue.location.longitude},red-pushpin`,
+                      }}
+                    />
+
                     <View style={styles.venueInfo}>
                       <View style={styles.venueHeaderRow}>
                         <Text style={styles.venueName}>{venue.name}</Text>
@@ -196,7 +208,9 @@ export default function Venues({ matchId }: VenuesProps) {
                       <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Distance</Text>
                         <Text style={styles.infoValue}>
-                          {venue.distanceFromMidpointKm} km from midpoint
+                          {myUid && venue.distanceByPlayerKm?.[myUid] != null
+                            ? `${venue.distanceByPlayerKm[myUid]} km from you`
+                            : `${venue.distanceFromMidpointKm} km from midpoint`}
                         </Text>
                       </View>
 
@@ -336,6 +350,10 @@ const styles = StyleSheet.create({
   venueCardSelected: {
     borderColor: Color.colorMediumspringgreen,
     borderWidth: 1.5,
+  },
+  venueMap: {
+    width: "100%",
+    height: 120,
   },
 
   venueHeaderRow: {

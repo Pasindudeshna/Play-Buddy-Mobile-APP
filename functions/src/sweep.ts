@@ -8,13 +8,15 @@ import { attemptMatch } from "./matching";
  * "waiting" without either ever re-triggering the other (e.g. ticket A was
  * created outside ticket B's radius, so A's own run didn't find B — nothing
  * re-checks A once B later becomes reachable). This sweep periodically
- * retries every still-waiting ticket so matches aren't missed.
+ * retries every still-waiting or still-choosing ticket so matches aren't
+ * missed and "choosing" candidate lists self-heal as other tickets come
+ * and go.
  */
 export const sweepWaitingTickets = onSchedule("every 2 minutes", async () => {
   const db = getFirestore();
   const waitingSnap = await db
     .collection("matchQueue")
-    .where("status", "==", "waiting")
+    .where("status", "in", ["waiting", "choosing"])
     .limit(200)
     .get();
 

@@ -1,10 +1,10 @@
-import { onSchedule } from "firebase-functions/v2/scheduler";
-import { logger } from "firebase-functions/v2";
-import { Timestamp, getFirestore } from "firebase-admin/firestore";
+import type { Config } from "@netlify/functions";
+import { Timestamp } from "firebase-admin/firestore";
+import { getDb } from "./_shared/firebaseAdmin";
 
 /** Marks queue tickets that ran past their expiresAt as "expired" so the app can stop waiting on them. */
-export const cleanupExpiredTickets = onSchedule("every 5 minutes", async () => {
-  const db = getFirestore();
+export default async (req: Request) => {
+  const db = getDb();
   const now = Timestamp.now();
 
   const expiredSnap = await db
@@ -20,5 +20,9 @@ export const cleanupExpiredTickets = onSchedule("every 5 minutes", async () => {
   expiredSnap.docs.forEach((docSnap) => batch.update(docSnap.ref, { status: "expired" }));
   await batch.commit();
 
-  logger.info(`Expired ${expiredSnap.size} stale queue tickets.`);
-});
+  console.log(`Expired ${expiredSnap.size} stale queue tickets.`);
+};
+
+export const config: Config = {
+  schedule: "*/5 * * * *",
+};

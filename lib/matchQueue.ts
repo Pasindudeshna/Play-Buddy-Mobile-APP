@@ -5,15 +5,18 @@ import {
   doc,
   GeoPoint,
   onSnapshot,
+  orderBy,
+  query,
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { callMatchApi } from "./matchApi";
 import { Coords, geohashFor } from "./location";
 
 export type TimeSlot = { start: Date; end: Date };
 
-export type QueueTicketStatus = "waiting" | "matched" | "cancelled" | "expired";
+export type QueueTicketStatus = "waiting" | "choosing" | "matched" | "cancelled" | "expired";
 
 export type QueueTicket = {
   userId: string;
@@ -30,30 +33,28 @@ export type QueueTicket = {
   expiresAt: Timestamp;
 };
 
+export type MatchCandidate = {
+  id: string;
+  candidateUserId: string;
+  candidateTicketId: string;
+  distanceKm: number;
+};
+
 const QUEUE_TICKET_TTL_MINUTES = 30;
 const SLOT_DURATION_MINUTES = 60;
 
-/**
- * Turns the UI's free-text date ("mm/dd/yyyy") + a time chip label ("06:00")
- * into a concrete {start, end} Date range. Falls back to today's date if the
- * text doesn't parse, so a malformed date never blocks the search.
- */
-export function buildTimeSlot(dateText: string, timeLabel: string): TimeSlot {
-  const now = new Date();
-  let month = now.getMonth() + 1;
-  let day = now.getDate();
-  let year = now.getFullYear();
-
-  const dateMatch = dateText.match(/(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})/);
-  if (dateMatch) {
-    month = parseInt(dateMatch[1], 10);
-    day = parseInt(dateMatch[2], 10);
-    year = parseInt(dateMatch[3], 10);
-    if (year < 100) year += 2000;
-  }
-
+/** Combines a calendar day with a "HH:MM" time chip label into a concrete {start, end} range. */
+export function buildTimeSlot(date: Date, timeLabel: string): TimeSlot {
   const [hours, minutes] = timeLabel.split(":").map((n) => parseInt(n, 10));
-  const start = new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+  const start = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    hours || 0,
+    minutes || 0,
+    0,
+    0
+  );
   const end = new Date(start.getTime() + SLOT_DURATION_MINUTES * 60 * 1000);
   return { start, end };
 }
@@ -61,13 +62,19 @@ export function buildTimeSlot(dateText: string, timeLabel: string): TimeSlot {
 export type CreateTicketInput = {
   userId: string;
   sport: string;
-  date: string;
+  date: Date;
   timeSlot: TimeSlot;
   playersNeeded: number;
   coords: Coords;
+  radiusKm: number;
 };
 
-/** Creates a new queue ticket. A Cloud Function trigger picks it up and tries to match it. */
+/**
+ * Creates a new queue ticket and immediately asks the matchmaking API to try
+ * matching it (the periodic sweep is a fallback safety net, not the primary
+ * trigger, since there's no Firestore onCreate trigger without Cloud
+ * Functions — see netlify/functions/attempt-match.mts).
+ */
 export async function createQueueTicket(input: CreateTicketInput): Promise<string> {
   const now = Date.now();
   const expiresAt = new Date(now + QUEUE_TICKET_TTL_MINUTES * 60 * 1000);
@@ -75,7 +82,7 @@ export async function createQueueTicket(input: CreateTicketInput): Promise<strin
   const docRef = await addDoc(collection(db, "matchQueue"), {
     userId: input.userId,
     sport: input.sport,
-    date: input.date,
+    date: input.date.toISOString().slice(0, 10),
     timeSlot: {
       start: Timestamp.fromDate(input.timeSlot.start),
       end: Timestamp.fromDate(input.timeSlot.end),
@@ -83,12 +90,19 @@ export async function createQueueTicket(input: CreateTicketInput): Promise<strin
     playersNeeded: input.playersNeeded,
     location: new GeoPoint(input.coords.latitude, input.coords.longitude),
     geohash: geohashFor(input.coords),
-    searchRadiusKm: 1,
+    searchRadiusKm: input.radiusKm,
     status: "waiting" as QueueTicketStatus,
     matchId: null,
     createdAt: serverTimestamp(),
     expiresAt: Timestamp.fromDate(expiresAt),
   });
+
+  try {
+    await callMatchApi("/api/attempt-match", { ticketId: docRef.id });
+  } catch (e) {
+    // Non-fatal: the periodic sweep (every 2 min) will pick this ticket up as a fallback.
+    console.log("attempt-match request failed, will rely on periodic sweep:", e);
+  }
 
   return docRef.id;
 }
@@ -109,4 +123,27 @@ export function subscribeToTicket(
     }
     onChange({ id: snap.id, ...(snap.data() as QueueTicket) });
   });
+}
+
+/** Subscribes to a "choosing" ticket's candidate list, closest-first. Returns an unsubscribe function. */
+export function subscribeToCandidates(
+  ticketId: string,
+  onChange: (candidates: MatchCandidate[]) => void
+): () => void {
+  return onSnapshot(
+    query(collection(db, "matchQueue", ticketId, "candidates"), orderBy("distanceKm", "asc")),
+    (snap) => {
+      onChange(
+        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<MatchCandidate, "id">) }))
+      );
+    }
+  );
+}
+
+/** Finalizes a match with the chosen candidate. Throws if the candidate was taken by someone else. */
+export async function selectMatchCandidate(
+  ticketId: string,
+  candidateTicketId: string
+): Promise<void> {
+  await callMatchApi("/api/select-match-candidate", { ticketId, candidateTicketId });
 }

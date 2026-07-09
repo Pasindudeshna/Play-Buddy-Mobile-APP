@@ -1,8 +1,9 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { doc, getDoc, onSnapshot, Timestamp } from "firebase/firestore";
+import { doc, getDoc, GeoPoint, onSnapshot, Timestamp } from "firebase/firestore";
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
+import { distanceKm } from "../lib/location";
 import {
   ActivityIndicator,
   Animated,
@@ -152,6 +153,7 @@ type MatchDoc = {
   date: string;
   timeSlot: { start: Timestamp; end: Timestamp };
   players: string[];
+  playerCoords?: Record<string, GeoPoint>;
   status: string;
   selectedVenueId: string | null;
 };
@@ -278,6 +280,18 @@ export default function MatchFound({ matchId, onBack }: MatchFoundProps) {
     ? `${venue.name}${venue.address ? `, ${venue.address}` : ""}`
     : "Vote for a venue below";
 
+  const myUid = auth.currentUser?.uid;
+  const opponentUid = match.players.find((id) => id !== myUid);
+  const myCoords = myUid ? match.playerCoords?.[myUid] : undefined;
+  const opponentCoords = opponentUid ? match.playerCoords?.[opponentUid] : undefined;
+  const partnerDistanceKm =
+    myCoords && opponentCoords
+      ? distanceKm(
+          { latitude: myCoords.latitude, longitude: myCoords.longitude },
+          { latitude: opponentCoords.latitude, longitude: opponentCoords.longitude }
+        )
+      : null;
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -331,8 +345,11 @@ export default function MatchFound({ matchId, onBack }: MatchFoundProps) {
               { icon: "📅", text: match.date },
               { icon: "🕐", text: formatTimeRange(start, end) },
               { icon: "📍", text: venueLabel },
-            ].map((item, i) => (
-              <View key={i} style={[styles.detailPill, i < 2 && styles.detailPillBorder]}>
+              ...(partnerDistanceKm != null
+                ? [{ icon: "📏", text: `${Math.round(partnerDistanceKm * 10) / 10} km away` }]
+                : []),
+            ].map((item, i, arr) => (
+              <View key={i} style={[styles.detailPill, i < arr.length - 1 && styles.detailPillBorder]}>
                 <Text style={styles.detailPillIcon}>{item.icon}</Text>
                 <Text style={styles.detailPillText}>{item.text}</Text>
               </View>

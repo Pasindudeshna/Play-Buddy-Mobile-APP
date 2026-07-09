@@ -3,20 +3,24 @@ import { router } from "expo-router";
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
 import MatchFound from "../../components/MatchFound";
+import MultiMatchPicker from "../../components/MultiMatchPicker";
 import {
   ActivityIndicator,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  TextInput,
   Platform,
 } from "react-native";
 import Slider from "@react-native-community/slider";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import LocationPickerMap from "../../components/LocationPickerMap";
+import * as Location from "expo-location";
 import { auth } from "../../firebaseConfig";
-import { geocodeAddress, getCurrentCoords } from "../../lib/location";
+import { getCurrentCoords, type Coords } from "../../lib/location";
 import {
   buildTimeSlot,
   cancelQueueTicket,
@@ -46,24 +50,46 @@ const TIME_SLOTS = [
 
 const PLAYER_OPTIONS = ["01", "02", "03", "04"];
 
-const LOCATIONS = ["Colombo 1", "Colombo 3", "Colombo 5", "Colombo 7", "Colombo 9", "Nugegoda", "Maharagama", "Battaramulla"];
+type Region = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
+
+function formatDate(date: Date): string {
+  return date.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+}
+
+const DEFAULT_REGION: Region = {
+  latitude: 6.9271,
+  longitude: 79.8612,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
 
 export default function FindBuddy() {
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedPlayers, setSelectedPlayers] = useState<string | null>(null);
-  const [dateText, setDateText] = useState("");
-  const [location, setLocation] = useState("Colombo 9");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [radius, setRadius] = useState(5);
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
+  const [pinCoords, setPinCoords] = useState<Coords | null>(null);
+  const [pickedCoords, setPickedCoords] = useState<Coords | null>(null);
+  const [pickedLabel, setPickedLabel] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
+  const [choosingTicketId, setChoosingTicketId] = useState<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
-  const budget = 2500;
 
-  const canSearch = selectedSport && selectedTime && selectedPlayers && dateText.length > 0;
+  const getValidationMessage = (): string | null => {
+    if (!selectedSport) return "Please select a sport.";
+    if (!selectedDate) return "Please select a date.";
+    if (!selectedTime) return "Please select a time slot.";
+    if (!selectedPlayers) return "Please select how many buddies you need.";
+    return null;
+  };
+  const canSearch = getValidationMessage() === null;
 
   useEffect(() => {
     return () => {
@@ -75,6 +101,33 @@ export default function FindBuddy() {
     if (!selectedTime) return null;
     const [ri, si] = selectedTime.split("-").map(Number);
     return TIME_SLOTS[ri]?.[si] ?? null;
+  };
+
+  const handleOpenMapPicker = async () => {
+    const start = pickedCoords ?? (await getCurrentCoords().catch(() => null));
+    if (start) {
+      const region = { ...DEFAULT_REGION, latitude: start.latitude, longitude: start.longitude };
+      setMapRegion(region);
+      setPinCoords(start);
+    } else {
+      setPinCoords({ latitude: DEFAULT_REGION.latitude, longitude: DEFAULT_REGION.longitude });
+    }
+    setShowMapPicker(true);
+  };
+
+  const handleConfirmPin = async () => {
+    if (!pinCoords) return;
+    setPickedCoords(pinCoords);
+    setShowMapPicker(false);
+    try {
+      const [place] = await Location.reverseGeocodeAsync(pinCoords);
+      const label = place
+        ? [place.name, place.street, place.city].filter(Boolean).join(", ")
+        : null;
+      setPickedLabel(label || "Pinned location");
+    } catch {
+      setPickedLabel("Pinned location");
+    }
   };
 
   const handleCancelSearch = async () => {
@@ -89,35 +142,35 @@ export default function FindBuddy() {
     }
     setTicketId(null);
     setSearching(false);
+    setChoosingTicketId(null);
   };
 
   const handleFindBuddy = async () => {
     const timeLabel = getSelectedTimeLabel();
     const user = auth.currentUser;
-    if (!canSearch || !timeLabel || !user) return;
+    if (!canSearch || !timeLabel || !selectedDate || !user) return;
 
     setSearchError(null);
     setSearching(true);
 
     try {
-      const coords =
-        (await getCurrentCoords().catch(() => null)) ??
-        (await geocodeAddress(location));
+      const coords = pickedCoords ?? (await getCurrentCoords().catch(() => null));
 
       if (!coords) {
         setSearching(false);
-        setSearchError("Couldn't determine your location. Please enable location services.");
+        setSearchError("Please pick a location on the map or enable GPS.");
         return;
       }
 
-      const timeSlot = buildTimeSlot(dateText, timeLabel);
+      const timeSlot = buildTimeSlot(selectedDate, timeLabel);
       const newTicketId = await createQueueTicket({
         userId: user.uid,
         sport: selectedSport!,
-        date: dateText,
+        date: selectedDate,
         timeSlot,
         playersNeeded: parseInt(selectedPlayers!, 10),
         coords,
+        radiusKm: radius,
       });
 
       setTicketId(newTicketId);
@@ -128,15 +181,23 @@ export default function FindBuddy() {
           unsubscribeRef.current?.();
           unsubscribeRef.current = null;
           setSearching(false);
+          setChoosingTicketId(null);
           setMatchId(ticket.matchId);
+        } else if (ticket.status === "choosing") {
+          setSearching(false);
+          setChoosingTicketId(ticket.id);
         } else if (ticket.status === "cancelled" || ticket.status === "expired") {
           unsubscribeRef.current?.();
           unsubscribeRef.current = null;
           setSearching(false);
+          setChoosingTicketId(null);
           setTicketId(null);
           if (ticket.status === "expired") {
             setSearchError("No buddy found nearby yet. Try again in a bit or widen your search.");
           }
+        } else if (ticket.status === "waiting") {
+          setSearching(true);
+          setChoosingTicketId(null);
         }
       });
     } catch (e: any) {
@@ -158,6 +219,15 @@ export default function FindBuddy() {
     );
   }
 
+  if (choosingTicketId) {
+    return (
+      <MultiMatchPicker
+        ticketId={choosingTicketId}
+        onBack={handleCancelSearch}
+      />
+    );
+  }
+
   if (searching) {
     return (
       <View style={styles.container}>
@@ -171,7 +241,7 @@ export default function FindBuddy() {
           <ActivityIndicator size="large" color={Color.colorMediumspringgreen} />
           <Text style={styles.searchingTitle}>Searching for a buddy…</Text>
           <Text style={styles.searchingSubtitle}>
-            Widening the search radius up to 10km. This can take a moment.
+            Looking within {radius}km of your selected location. This can take a moment.
           </Text>
           <TouchableOpacity style={styles.cancelSearchBtn} onPress={handleCancelSearch}>
             <Text style={styles.cancelSearchBtnText}>Cancel Search</Text>
@@ -254,14 +324,36 @@ export default function FindBuddy() {
               <Text style={styles.dateIcon}>📅</Text>
               <Text style={styles.dateLabel}>Date</Text>
             </View>
-            <TextInput
+            <TouchableOpacity
               style={styles.dateInput}
-              placeholder="mm / dd / yyyy"
-              placeholderTextColor={Color.colorGray300}
-              value={dateText}
-              onChangeText={setDateText}
-              keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "numeric"}
-            />
+              activeOpacity={0.85}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={selectedDate ? styles.dateInputText : styles.dateInputPlaceholder}>
+                {selectedDate ? formatDate(selectedDate) : "Select a date"}
+              </Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={selectedDate ?? new Date()}
+                mode="date"
+                minimumDate={new Date()}
+                display={Platform.OS === "ios" ? "inline" : "default"}
+                onChange={(event, date) => {
+                  if (Platform.OS !== "ios") setShowDatePicker(false);
+                  if (event.type !== "dismissed" && date) setSelectedDate(date);
+                }}
+              />
+            )}
+            {showDatePicker && Platform.OS === "ios" && (
+              <TouchableOpacity
+                style={styles.dateDoneBtn}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.dateDoneBtnText}>Done</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.timeSlotsWrapper}>
               {TIME_SLOTS.map((row, ri) => (
@@ -322,32 +414,22 @@ export default function FindBuddy() {
             </View>
 
             <TouchableOpacity
-              style={styles.locationDropdown}
-              onPress={() => setShowLocationPicker((v) => !v)}
+              style={styles.mapPickBtn}
+              onPress={handleOpenMapPicker}
               activeOpacity={0.85}
             >
-              <Text style={styles.locationDropdownText}>{location}</Text>
-              <Text style={styles.locationDropdownChevron}>⌄</Text>
+              <Text style={styles.mapPickBtnText}>
+                {pickedLabel ? `📍 ${pickedLabel}` : "📍 Pick exact location on map"}
+              </Text>
+              {pickedCoords && (
+                <TouchableOpacity
+                  onPress={() => { setPickedCoords(null); setPickedLabel(null); }}
+                  hitSlop={8}
+                >
+                  <Text style={styles.mapPickClear}>✕</Text>
+                </TouchableOpacity>
+              )}
             </TouchableOpacity>
-
-            {showLocationPicker && (
-              <View style={styles.locationPicker}>
-                {LOCATIONS.map((loc) => (
-                  <TouchableOpacity
-                    key={loc}
-                    style={styles.locationOption}
-                    onPress={() => { setLocation(loc); setShowLocationPicker(false); }}
-                  >
-                    <Text style={[
-                      styles.locationOptionText,
-                      location === loc && styles.locationOptionTextActive,
-                    ]}>
-                      {loc}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
 
             <View style={styles.sliderHeader}>
               <Text style={styles.sliderLabel}>Search Radius</Text>
@@ -370,29 +452,52 @@ export default function FindBuddy() {
             </View>
           </View>
 
-          {/* ── Budget ── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Budget Per Person</Text>
-            <Text style={styles.budgetAmount}>LKR {budget.toLocaleString()}.00</Text>
-          </View>
-
           {/* ── Find Button ── */}
          <TouchableOpacity
             style={[styles.findBtn, !canSearch && styles.findBtnDisabled]}
             activeOpacity={canSearch ? 0.85 : 1}
             onPress={handleFindBuddy}
+            disabled={!canSearch}
             >
             <Text style={styles.findBtnIcon}>🔍</Text>
             <Text style={styles.findBtnText}>Find my Play Buddy</Text>
             </TouchableOpacity>
 
           <Text style={[styles.findHint, searchError && styles.findHintError]}>
-            {searchError ?? "Please select a sport, date, time and area to continue"}
+            {searchError ?? getValidationMessage() ?? "All set — tap Find my Play Buddy!"}
           </Text>
 
           <View style={{ height: 32 }} />
         </ScrollView>
       </SafeAreaView>
+
+      <Modal visible={showMapPicker} animationType="slide" onRequestClose={() => setShowMapPicker(false)}>
+        <View style={styles.mapModalContainer}>
+          <LocationPickerMap
+            key={`${mapRegion.latitude}-${mapRegion.longitude}`}
+            initialRegion={mapRegion}
+            onPinChange={setPinCoords}
+          />
+
+          <SafeAreaView style={styles.mapModalTopBar} pointerEvents="box-none">
+            <TouchableOpacity style={styles.mapModalCloseBtn} onPress={() => setShowMapPicker(false)}>
+              <Text style={styles.mapModalCloseBtnText}>✕ Close</Text>
+            </TouchableOpacity>
+            <Text style={styles.mapModalHint}>Tap or drag the pin to set your spot</Text>
+          </SafeAreaView>
+
+          <SafeAreaView style={styles.mapModalBottomBar}>
+            <TouchableOpacity
+              style={[styles.mapModalConfirmBtn, !pinCoords && styles.findBtnDisabled]}
+              activeOpacity={0.85}
+              disabled={!pinCoords}
+              onPress={handleConfirmPin}
+            >
+              <Text style={styles.mapModalConfirmBtnText}>Confirm Location</Text>
+            </TouchableOpacity>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -518,9 +623,31 @@ const styles = StyleSheet.create({
     borderRadius: Border.br_20,
     height: 44,
     paddingHorizontal: 16,
+    justifyContent: "center",
+  },
+  dateInputText: {
     color: Color.colorWhite,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
+  },
+  dateInputPlaceholder: {
+    color: Color.colorGray300,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_13,
+  },
+  dateDoneBtn: {
+    alignSelf: "flex-end",
+    backgroundColor: Color.colorMediumspringgreen,
+    borderRadius: Border.br_20,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginTop: -4,
+  },
+  dateDoneBtnText: {
+    color: Color.colorBlack,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_13,
+    fontWeight: "700",
   },
 
   /* Time slots */
@@ -577,40 +704,83 @@ const styles = StyleSheet.create({
   },
   playerChipTextActive: { color: Color.colorMediumspringgreen },
 
-  /* Location */
-  locationDropdown: {
+  /* Map picker trigger */
+  mapPickBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: Color.color1Gray200,
     borderRadius: Border.br_20,
-    height: 46,
+    minHeight: 44,
     paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  locationDropdownText: {
+  mapPickBtnText: {
+    flex: 1,
+    color: Color.colorMediumspringgreen,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_12,
+  },
+  mapPickClear: {
+    color: Color.colorGray300,
+    fontSize: 14,
+    paddingLeft: 10,
+  },
+
+  /* Map picker modal */
+  mapModalContainer: { flex: 1, backgroundColor: Color.colorBlack },
+  mapModalTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  mapModalCloseBtn: {
+    backgroundColor: "rgba(8,9,9,0.85)",
+    borderRadius: Border.br_20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  mapModalCloseBtnText: {
     color: Color.colorWhite,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
   },
-  locationDropdownChevron: {
+  mapModalHint: {
+    alignSelf: "center",
+    backgroundColor: "rgba(8,9,9,0.85)",
     color: Color.colorGray300,
-    fontSize: 18,
-  },
-  locationPicker: {
-    backgroundColor: Color.color1Gray100,
-    borderRadius: Border.br_12,
-    borderWidth: 1,
-    borderColor: "rgba(69,255,179,0.15)",
-    overflow: "hidden",
-    marginTop: -4,
-  },
-  locationOption: { paddingHorizontal: 16, paddingVertical: 11 },
-  locationOptionText: {
-    color: Color.colorGray400,
     fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_13,
+    fontSize: FontSize.fs_11,
+    borderRadius: Border.br_20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  locationOptionTextActive: { color: Color.colorMediumspringgreen },
+  mapModalBottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  mapModalConfirmBtn: {
+    backgroundColor: Color.colorMediumspringgreen,
+    borderRadius: Border.br_20,
+    height: 54,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  mapModalConfirmBtnText: {
+    color: Color.colorBlack,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_15,
+    fontWeight: "700",
+  },
 
   sliderHeader: {
     flexDirection: "row",
@@ -638,14 +808,6 @@ const styles = StyleSheet.create({
     color: Color.colorGray300,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
-  },
-
-  /* Budget */
-  budgetAmount: {
-    color: Color.colorMediumspringgreen,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_20,
-    fontWeight: "700",
   },
 
   /* Find button */

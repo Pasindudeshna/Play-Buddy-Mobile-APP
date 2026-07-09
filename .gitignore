@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # Firebase Admin service account key (used by scripts/set-admin-claim.js)
@@ -47,3 +48,6 @@ app-example
 
 # Cloud Functions build output
 functions/lib/
+
+# Netlify local dev/CLI state
+.netlify/

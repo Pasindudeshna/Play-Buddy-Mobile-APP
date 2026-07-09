@@ -25,20 +25,39 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Facility-web owner profiles, keyed by their Auth uid (shared Auth pool
+    // with the mobile app's users/{uid} — see facility-web/src/lib/firebase.ts).
+    // Written on signup in facility-web/src/routes/LoginPage.tsx.
+    match /ground_owners/{ownerId} {
+      allow read: if isOwner(ownerId) || isAdmin();
+      allow create, update: if isOwner(ownerId);
+      allow delete: if false;
+    }
+
     match /matchQueue/{ticketId} {
-      // Clients create their own ticket and can cancel it. Only Cloud
-      // Functions (Admin SDK, bypasses rules) may set status:"matched"/
-      // "expired" or write matchId — so match outcomes can't be forged
-      // client-side. See functions/src/matching.ts.
+      // Clients create their own ticket and can cancel it (from "waiting" or
+      // while "choosing" between candidates). Only Cloud Functions (Admin
+      // SDK, bypasses rules) may set status:"matched"/"choosing"/"expired"
+      // or write matchId — so match outcomes can't be forged client-side.
+      // See functions/src/matching.ts.
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'waiting';
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow update: if isSignedIn()
         && resource.data.userId == request.auth.uid
-        && resource.data.status == 'waiting'
+        && resource.data.status in ['waiting', 'choosing']
         && request.resource.data.status == 'cancelled';
       allow delete: if false;
+
+      // Candidate list for a "choosing" ticket — populated by
+      // functions/src/matching.ts, chosen via the selectMatchCandidate
+      // callable. Only the ticket's own owner may see who matched.
+      match /candidates/{candidateId} {
+        allow read: if isSignedIn()
+          && get(/databases/$(database)/documents/matchQueue/$(ticketId)).data.userId == request.auth.uid;
+        allow write: if false;
+      }
     }
 
     match /facilities/{facilityId} {

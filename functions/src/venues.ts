@@ -58,6 +58,25 @@ type RegisteredVenue = {
   distanceFromMidpointKm: number;
 };
 
+/** Distance from a venue location to each matched player, keyed by uid. */
+function distanceByPlayerKm(
+  venueLocation: { latitude: number; longitude: number },
+  playerCoords: Record<string, GeoPoint>
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [uid, coords] of Object.entries(playerCoords)) {
+    result[uid] = Math.round(
+      haversineKm(venueLocation.latitude, venueLocation.longitude, coords.latitude, coords.longitude) * 10
+    ) / 10;
+  }
+  return result;
+}
+
+/** Fairness score: the larger of the two players' distances — minimizing this favors venues close to *both*, not just the midpoint. */
+function fairnessScore(distances: Record<string, number>): number {
+  return Math.max(...Object.values(distances));
+}
+
 /**
  * Finds admin-approved facilities offering `sport` within `SEARCH_RADIUS_METERS`
  * of `midpoint`, closest first. Same geohash-bounds-then-haversine-refine
@@ -129,6 +148,22 @@ type PlacesNearbyResult = {
   photos?: { photo_reference: string }[];
 };
 
+type VenueOptionDoc = {
+  placeId: string | null;
+  facilityId: string | null;
+  name: string;
+  address: string | null;
+  location: GeoPoint;
+  photoRef: string | null;
+  photoUrl: string | null;
+  rating: number | null;
+  distanceFromMidpointKm: number;
+  distanceByPlayerKm: Record<string, number>;
+  votes: Record<string, boolean>;
+  voteCount: number;
+  source: "registered" | "places";
+};
+
 /**
  * Once two players are matched, find venues/grounds around the midpoint of
  * their locations. Admin-approved facilities registered through facility-web
@@ -136,6 +171,10 @@ type PlacesNearbyResult = {
  * touchpoint #1 (server-side) — the Places API "Nearby Search" endpoint —
  * only fills any remaining slots, keeping the API key off the client and
  * saving quota/cost once enough registered facilities are already found.
+ * The final list is ranked by fairness — the venue's max distance to either
+ * player — rather than raw distance to the arithmetic-average midpoint, so
+ * the top option is genuinely convenient for both players, not just close
+ * to a point that may sit much nearer one of them.
  */
 export const onMatchCreated = onDocumentCreated(
   { document: "matches/{matchId}", secrets: [GOOGLE_MAPS_API_KEY] },
@@ -146,6 +185,7 @@ export const onMatchCreated = onDocumentCreated(
     const db = getFirestore();
 
     const midpoint: GeoPoint = match.midpoint;
+    const playerCoords: Record<string, GeoPoint> = match.playerCoords ?? {};
     const keyword = SPORT_KEYWORDS[match.sport] ?? match.sport;
 
     const registered = await findRegisteredFacilities(
@@ -155,91 +195,86 @@ export const onMatchCreated = onDocumentCreated(
       MAX_VENUE_OPTIONS
     );
 
-    const batch = db.batch();
-    for (const facility of registered) {
-      const ref = db.collection(`matches/${matchId}/venueOptions`).doc(facility.id);
-      batch.set(ref, {
-        placeId: null,
-        facilityId: facility.id,
-        name: facility.name,
-        address: facility.address,
-        location: facility.location,
-        photoRef: null,
-        photoUrl: facility.photoUrl,
-        rating: null,
-        distanceFromMidpointKm: facility.distanceFromMidpointKm,
-        votes: {},
-        voteCount: 0,
-        source: "registered",
-      });
-    }
+    const venues: (VenueOptionDoc & { _id: string })[] = registered.map((facility) => ({
+      _id: facility.id,
+      placeId: null,
+      facilityId: facility.id,
+      name: facility.name,
+      address: facility.address,
+      location: facility.location,
+      photoRef: null,
+      photoUrl: facility.photoUrl,
+      rating: null,
+      distanceFromMidpointKm: facility.distanceFromMidpointKm,
+      distanceByPlayerKm: distanceByPlayerKm(facility.location, playerCoords),
+      votes: {},
+      voteCount: 0,
+      source: "registered",
+    }));
 
     const remaining = MAX_VENUE_OPTIONS - registered.length;
-    if (remaining <= 0) {
-      await batch.commit();
-      logger.info(
-        `Saved ${registered.length} registered venue options for match ${matchId} (Places skipped)`
-      );
-      return;
+    if (remaining > 0) {
+      const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
+      url.searchParams.set("location", `${midpoint.latitude},${midpoint.longitude}`);
+      url.searchParams.set("radius", String(SEARCH_RADIUS_METERS));
+      url.searchParams.set("keyword", keyword);
+      url.searchParams.set("key", GOOGLE_MAPS_API_KEY.value());
+
+      type PlacesNearbyResponse = {
+        status: string;
+        error_message?: string;
+        results?: PlacesNearbyResult[];
+      };
+      try {
+        const res = await fetch(url.toString());
+        const json = (await res.json()) as PlacesNearbyResponse;
+
+        if (json.status !== "OK" && json.status !== "ZERO_RESULTS") {
+          logger.error("Places API error", json.status, json.error_message);
+        } else {
+          const results = (json.results ?? []).slice(0, remaining);
+          for (const place of results) {
+            const location = { latitude: place.geometry.location.lat, longitude: place.geometry.location.lng };
+            const distanceFromMidpointKm = haversineKm(
+              midpoint.latitude,
+              midpoint.longitude,
+              location.latitude,
+              location.longitude
+            );
+
+            venues.push({
+              _id: place.place_id,
+              placeId: place.place_id,
+              facilityId: null,
+              name: place.name,
+              address: place.vicinity ?? null,
+              location: new GeoPoint(location.latitude, location.longitude),
+              photoRef: place.photos?.[0]?.photo_reference ?? null,
+              photoUrl: null,
+              rating: place.rating ?? null,
+              distanceFromMidpointKm: Math.round(distanceFromMidpointKm * 10) / 10,
+              distanceByPlayerKm: distanceByPlayerKm(location, playerCoords),
+              votes: {},
+              voteCount: 0,
+              source: "places",
+            });
+          }
+        }
+      } catch (err) {
+        logger.error("Places API request failed", err);
+      }
     }
 
-    const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
-    url.searchParams.set("location", `${midpoint.latitude},${midpoint.longitude}`);
-    url.searchParams.set("radius", String(SEARCH_RADIUS_METERS));
-    url.searchParams.set("keyword", keyword);
-    url.searchParams.set("key", GOOGLE_MAPS_API_KEY.value());
+    venues.sort((a, b) => fairnessScore(a.distanceByPlayerKm) - fairnessScore(b.distanceByPlayerKm));
 
-    type PlacesNearbyResponse = {
-      status: string;
-      error_message?: string;
-      results?: PlacesNearbyResult[];
-    };
-    let json: PlacesNearbyResponse;
-    try {
-      const res = await fetch(url.toString());
-      json = (await res.json()) as PlacesNearbyResponse;
-    } catch (err) {
-      logger.error("Places API request failed", err);
-      await batch.commit();
-      return;
+    const batch = db.batch();
+    for (const { _id, ...venue } of venues.slice(0, MAX_VENUE_OPTIONS)) {
+      batch.set(db.collection(`matches/${matchId}/venueOptions`).doc(_id), venue);
     }
-
-    if (json.status !== "OK" && json.status !== "ZERO_RESULTS") {
-      logger.error("Places API error", json.status, json.error_message);
-      await batch.commit();
-      return;
-    }
-
-    const results = (json.results ?? []).slice(0, remaining);
-
-    for (const place of results) {
-      const ref = db.collection(`matches/${matchId}/venueOptions`).doc(place.place_id);
-      const distanceFromMidpointKm = haversineKm(
-        midpoint.latitude,
-        midpoint.longitude,
-        place.geometry.location.lat,
-        place.geometry.location.lng
-      );
-
-      batch.set(ref, {
-        placeId: place.place_id,
-        facilityId: null,
-        name: place.name,
-        address: place.vicinity ?? null,
-        location: new GeoPoint(place.geometry.location.lat, place.geometry.location.lng),
-        photoRef: place.photos?.[0]?.photo_reference ?? null,
-        photoUrl: null,
-        rating: place.rating ?? null,
-        distanceFromMidpointKm: Math.round(distanceFromMidpointKm * 10) / 10,
-        votes: {},
-        voteCount: 0,
-        source: "places",
-      });
-    }
-
     await batch.commit();
+
     logger.info(
-      `Saved ${registered.length} registered + ${results.length} Places venue options for match ${matchId}`
+      `Saved ${venues.length} venue options (fairness-ranked) for match ${matchId}`
     );
   }
 );

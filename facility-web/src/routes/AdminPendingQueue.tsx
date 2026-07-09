@@ -6,6 +6,7 @@ import type { Facility } from "../lib/facility";
 export default function AdminPendingQueue() {
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
 
@@ -15,10 +16,19 @@ export default function AdminPendingQueue() {
       where("status", "==", "pending"),
       orderBy("createdAt", "desc")
     );
-    return onSnapshot(q, (snap) => {
-      setFacilities(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Facility, "id">) })));
-      setLoading(false);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setFacilities(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Facility, "id">) })));
+        setError(null);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Failed to load pending facilities:", err);
+        setError(err.message);
+        setLoading(false);
+      }
+    );
   }, []);
 
   const approve = async (id: string) => {
@@ -50,23 +60,30 @@ export default function AdminPendingQueue() {
 
   return (
     <div>
-      <h2>Pending Facilities</h2>
-      {loading ? (
+      <div className="page-header">
+        <h2>Pending Grounds</h2>
+        <p>Review new listings before they go live.</p>
+      </div>
+
+      {error ? (
+        <p className="error-text">Couldn't load pending facilities: {error}</p>
+      ) : loading ? (
         <p className="empty-text">Loading…</p>
       ) : facilities.length === 0 ? (
-        <p className="empty-text">No facilities awaiting review.</p>
+        <p className="empty-text">No grounds awaiting review.</p>
       ) : (
         facilities.map((f) => (
           <div className="card" key={f.id}>
-            <strong>{f.name}</strong>
-            <p style={{ margin: "4px 0", color: "var(--color-gray)" }}>{f.address}</p>
-            <p style={{ margin: "4px 0", fontSize: 13 }}>{f.sports.join(", ")}</p>
-            <p style={{ margin: "4px 0", fontSize: 13 }}>
-              Submitted by {f.ownerName || f.ownerEmail} ({f.ownerEmail})
+            <span className="card-title">{f.name}</span>
+            <p className="meta">{f.address}</p>
+            <p className="meta">{f.sports.join(", ")}</p>
+            <p className="meta">
+              Submitted by <strong>{f.ownerName || f.ownerEmail}</strong> ({f.ownerEmail})
             </p>
-            <p style={{ margin: "4px 0", fontSize: 13 }}>
+            <p className="meta">
               Contact: {f.contactPhone} · {f.contactEmail}
             </p>
+            <div className="divider" />
             <div className="field">
               <label>Rejection reason (used only if you reject)</label>
               <input
@@ -76,7 +93,7 @@ export default function AdminPendingQueue() {
                 }
               />
             </div>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div className="row" style={{ justifyContent: "flex-start", gap: 12 }}>
               <button className="btn" disabled={busyId === f.id} onClick={() => approve(f.id)}>
                 Approve
               </button>

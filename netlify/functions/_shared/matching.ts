@@ -1,16 +1,12 @@
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { logger } from "firebase-functions/v2";
 import {
   DocumentData,
+  FieldValue,
   Firestore,
   GeoPoint,
   QueryDocumentSnapshot,
   Timestamp,
-  FieldValue,
-  getFirestore,
 } from "firebase-admin/firestore";
-import { distanceBetween, geohashQueryBounds } from "geofire-common";
+import { createVenueOptionsForMatch } from "./venues";
 
 export type QueueTicketStatus = "waiting" | "choosing" | "matched" | "cancelled" | "expired";
 
@@ -36,14 +32,14 @@ function timeSlotsOverlap(a: QueueTicket["timeSlot"], b: QueueTicket["timeSlot"]
 /**
  * Finds every valid candidate ticket for `ticket` within its own
  * `searchRadiusKm` — same sport, overlapping time slot, excluding the
- * ticket's own user — sorted closest-first. Geohash bounds over-select at
- * the edges, so results are re-filtered with the exact haversine distance.
+ * ticket's own user — sorted closest-first.
  */
 async function findCandidatesWithinRadius(
   db: Firestore,
   ticketId: string,
   ticket: QueueTicket
 ): Promise<(QueryDocumentSnapshot<DocumentData> & { _distanceKm: number })[]> {
+  const { distanceBetween, geohashQueryBounds } = await import("geofire-common");
   const center: [number, number] = [ticket.location.latitude, ticket.location.longitude];
   const radiusKm = ticket.searchRadiusKm;
   const bounds = geohashQueryBounds(center, radiusKm * 1000);
@@ -73,10 +69,7 @@ async function findCandidatesWithinRadius(
       if (data.userId === ticket.userId) continue;
       if (!timeSlotsOverlap(data.timeSlot, ticket.timeSlot)) continue;
 
-      const distanceKm = distanceBetween(
-        [data.location.latitude, data.location.longitude],
-        center
-      );
+      const distanceKm = distanceBetween([data.location.latitude, data.location.longitude], center);
       if (distanceKm > radiusKm) continue;
 
       candidates.push(Object.assign(docSnap, { _distanceKm: distanceKm }));
@@ -89,29 +82,20 @@ async function findCandidatesWithinRadius(
 
 /**
  * Atomically matches `ticketId` with `candidateId` if both are still
- * waiting. Returns true if a match was created. Losing this race (someone
- * else matched one of the two tickets a moment earlier) is expected and
- * simply returns false.
+ * waiting. Returns the new matchId if a match was created, else null.
  */
-async function tryCreateMatch(
-  db: Firestore,
-  ticketId: string,
-  candidateId: string
-): Promise<boolean> {
+async function tryCreateMatch(db: Firestore, ticketId: string, candidateId: string): Promise<string | null> {
   return db.runTransaction(async (tx) => {
     const ticketRef = db.doc(`matchQueue/${ticketId}`);
     const candidateRef = db.doc(`matchQueue/${candidateId}`);
-    const [ticketSnap, candidateSnap] = await Promise.all([
-      tx.get(ticketRef),
-      tx.get(candidateRef),
-    ]);
+    const [ticketSnap, candidateSnap] = await Promise.all([tx.get(ticketRef), tx.get(candidateRef)]);
 
-    if (!ticketSnap.exists || !candidateSnap.exists) return false;
+    if (!ticketSnap.exists || !candidateSnap.exists) return null;
 
     const ticket = ticketSnap.data() as QueueTicket;
     const candidate = candidateSnap.data() as QueueTicket;
-    if (ticket.status !== "waiting" && ticket.status !== "choosing") return false;
-    if (candidate.status !== "waiting") return false;
+    if (ticket.status !== "waiting" && ticket.status !== "choosing") return null;
+    if (candidate.status !== "waiting") return null;
 
     const matchRef = db.collection("matches").doc();
     const midpoint = new GeoPoint(
@@ -138,15 +122,11 @@ async function tryCreateMatch(
     tx.update(ticketRef, { status: "matched", matchId: matchRef.id });
     tx.update(candidateRef, { status: "matched", matchId: matchRef.id });
 
-    return true;
+    return matchRef.id;
   });
 }
 
-/**
- * Overwrites `matchQueue/{ticketId}/candidates` with the current candidate
- * set. Pass an empty array to clear stale candidates when a ticket reverts
- * out of "choosing" (status is set separately by the caller in that case).
- */
+/** Overwrites `matchQueue/{ticketId}/candidates`. Pass an empty array to clear stale candidates. */
 async function writeCandidates(
   db: Firestore,
   ticketId: string,
@@ -171,12 +151,19 @@ async function writeCandidates(
   await batch.commit();
 }
 
+async function finalizeMatch(db: Firestore, matchId: string): Promise<void> {
+  const matchSnap = await db.doc(`matches/${matchId}`).get();
+  if (!matchSnap.exists) return;
+  const match = matchSnap.data() as { sport: string; midpoint: GeoPoint; playerCoords?: Record<string, GeoPoint> };
+  await createVenueOptionsForMatch(db, matchId, match);
+}
+
 /**
  * Re-evaluates a single waiting-or-choosing ticket: searches its own
  * `searchRadiusKm` for candidates and branches on the count. Idempotent and
- * safe to re-run repeatedly (onCreate trigger + periodic sweep both call
- * this), so a ticket's `choosing` candidate list self-heals as other
- * tickets come and go.
+ * safe to re-run repeatedly (called directly after ticket creation, after a
+ * failed candidate pick, and by the periodic sweep), so a ticket's
+ * `choosing` candidate list self-heals as other tickets come and go.
  */
 export async function attemptMatch(db: Firestore, ticketId: string): Promise<boolean> {
   const ticketSnap = await db.doc(`matchQueue/${ticketId}`).get();
@@ -196,71 +183,43 @@ export async function attemptMatch(db: Firestore, ticketId: string): Promise<boo
   }
 
   if (candidates.length === 1) {
-    const matched = await tryCreateMatch(db, ticketId, candidates[0].id);
-    if (matched) {
-      logger.info(`Matched ticket ${ticketId} with ${candidates[0].id} (sole candidate)`);
+    const matchId = await tryCreateMatch(db, ticketId, candidates[0].id);
+    if (matchId) {
+      await finalizeMatch(db, matchId);
       return true;
     }
-    // Lost the race — candidate was taken a moment earlier. Fall through to re-evaluate as 0.
     return false;
   }
 
   await writeCandidates(db, ticketId, candidates);
-  logger.info(`Ticket ${ticketId} has ${candidates.length} candidates — awaiting user choice`);
   return false;
 }
 
-export const onQueueTicketCreated = onDocumentCreated(
-  "matchQueue/{ticketId}",
-  async (event) => {
-    if (!event.data) return;
-    const db = getFirestore();
-    await attemptMatch(db, event.params.ticketId);
-  }
-);
-
-/** Callable so a "choosing" ticket owner can finalize a match with a chosen candidate. */
-export const selectMatchCandidate = onCall(async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) {
-    throw new HttpsError("unauthenticated", "You must be signed in to select a match.");
-  }
-
-  const { ticketId, candidateTicketId } = (request.data ?? {}) as {
-    ticketId?: string;
-    candidateTicketId?: string;
-  };
-  if (!ticketId || !candidateTicketId) {
-    throw new HttpsError("invalid-argument", "ticketId and candidateTicketId are required.");
-  }
-
-  const db = getFirestore();
+/** Finalizes a match with a chosen candidate. Throws a coded error (see _shared/errors.ts) on failure. */
+export async function selectMatchCandidate(
+  db: Firestore,
+  uid: string,
+  ticketId: string,
+  candidateTicketId: string
+): Promise<void> {
   const ticketSnap = await db.doc(`matchQueue/${ticketId}`).get();
-  if (!ticketSnap.exists) {
-    throw new HttpsError("not-found", "Ticket not found.");
-  }
+  if (!ticketSnap.exists) throw new Error("not-found:Ticket not found.");
+
   const ticket = ticketSnap.data() as QueueTicket;
-  if (ticket.userId !== uid) {
-    throw new HttpsError("permission-denied", "You don't own this ticket.");
-  }
-  if (ticket.status !== "choosing") {
-    throw new HttpsError("failed-precondition", "This ticket isn't awaiting a choice.");
-  }
+  if (ticket.userId !== uid) throw new Error("permission-denied:You don't own this ticket.");
+  if (ticket.status !== "choosing") throw new Error("failed-precondition:This ticket isn't awaiting a choice.");
 
   const candidateRef = db.collection(`matchQueue/${ticketId}/candidates`).doc(candidateTicketId);
   const candidateSnap = await candidateRef.get();
   if (!candidateSnap.exists) {
-    throw new HttpsError("not-found", "That candidate is no longer available. Pick another.");
+    throw new Error("not-found:That candidate is no longer available. Pick another.");
   }
 
-  const matched = await tryCreateMatch(db, ticketId, candidateTicketId);
-  if (!matched) {
+  const matchId = await tryCreateMatch(db, ticketId, candidateTicketId);
+  if (!matchId) {
     await candidateRef.delete().catch(() => undefined);
-    throw new HttpsError(
-      "failed-precondition",
-      "That player just matched with someone else. Pick another."
-    );
+    throw new Error("failed-precondition:That player just matched with someone else. Pick another.");
   }
 
-  return { ok: true };
-});
+  await finalizeMatch(db, matchId);
+}
