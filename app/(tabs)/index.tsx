@@ -1,23 +1,24 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, router } from "expo-router";
 import { signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme, type ThemeColors } from "../../contexts/ThemeContext";
 import { auth, db } from "../../firebaseConfig";
 import {
   Border,
-  Color,
   FontFamily,
   FontSize,
   Padding
@@ -28,6 +29,7 @@ const DEFAULT_USER = {
   firstName: "Guest",
   fullName: "Guest User",
   location: "Location not set",
+  photoURL: null as string | null,
   tier: "Bronze",
   nextTier: "Silver",
   gamesPlayed: 0,
@@ -35,22 +37,14 @@ const DEFAULT_USER = {
   positive: 0,
   negative: 0,
   totalGames: 0,
-  avatar: null,
 };
 
-const STATS = [
-  { label: "Total\nGames", value: "20" },
-  { label: "Rating", value: "20" },
-  { label: "Positive\nReview", value: "20" },
-  { label: "Total\nGames", value: "20" },
-];
-
 const QUICK_ACTIONS = [
-  { id: "find", icon: "🔍", title: "Find Buddy", sub: "Find Player Now", route: "/find-buddy" },
-  { id: "score", icon: "🏆", title: "Scoreboard", sub: "View results", route: "/scoreboard" },
-  { id: "venues", icon: "📍", title: "Venues", sub: "Browse courts", route: "/venues" },
-  { id: "emergency", icon: "🛡", title: "Emergency", sub: "SOS & contacts", route: "/emergency" },
-];
+  { id: "find", icon: "search", title: "Find Buddy", sub: "Find Player Now", route: "/(tabs)/FindBuddy" },
+  { id: "score", icon: "trophy", title: "Scoreboard", sub: "View results", route: "/scoreboard" },
+  { id: "venues", icon: "location", title: "Venues", sub: "Browse courts", route: "/venues" },
+  { id: "emergency", icon: "shield-checkmark", title: "Emergency", sub: "SOS & contacts", route: "/emergency" },
+] as const;
 
 const RECENT_GAMES = [
   {
@@ -74,6 +68,9 @@ const RECENT_GAMES = [
 ];
 
 export default function index() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [user, setUser] = useState(DEFAULT_USER);
   const [loading, setLoading] = useState(true);
 
@@ -97,6 +94,7 @@ export default function index() {
             firstName: userData.fullName?.split(" ")[0] || "Guest",
             fullName: userData.fullName || "User",
             location: userData.city || "Location not set",
+            photoURL: userData.photoURL || null,
             tier: userData.tier || "Bronze",
             nextTier: userData.nextTier || "Silver",
             gamesPlayed: userData.gamesPlayed || 0,
@@ -104,7 +102,6 @@ export default function index() {
             positive: userData.positiveReviews || 0,
             negative: userData.negativeReviews || 0,
             totalGames: userData.totalGames || 0,
-            avatar: null,
           });
         } else {
           setUser(DEFAULT_USER);
@@ -134,7 +131,7 @@ export default function index() {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={Color.colorMediumspringgreen} />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -142,7 +139,7 @@ export default function index() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#080909", "rgba(5, 27, 31, 0.97)"]}
+        colors={colors.background}
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.8, y: 1 }}
         style={styles.background}
@@ -156,7 +153,7 @@ export default function index() {
             {"  "}PLAY BUDDY
           </Text>
           <TouchableOpacity style={styles.menuBtn} onPress={handleLogout}>
-            <Text style={styles.menuIcon}>🚪</Text>
+            <Ionicons name="log-out-outline" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -197,7 +194,7 @@ export default function index() {
                 activeOpacity={0.8}
               >
                 <View style={styles.actionIconBox}>
-                  <Text style={styles.actionIcon}>{action.icon}</Text>
+                  <Ionicons name={action.icon as any} size={22} color={colors.accent} />
                 </View>
                 <Text style={styles.actionTitle}>{action.title}</Text>
                 <Text style={styles.actionSub}>{action.sub}</Text>
@@ -236,10 +233,7 @@ export default function index() {
                 </View>
 
                 {/* Result badge */}
-                <View style={[
-                  styles.resultBadge,
-                  game.result === "won" ? styles.resultWon : styles.resultLost,
-                ]}>
+                <View style={styles.resultBadge}>
                   <Text style={styles.resultIcon}>
                     {game.result === "won" ? "🏠" : "❤️"}
                   </Text>
@@ -258,10 +252,12 @@ export default function index() {
           <View style={styles.profileCard}>
             {/* Avatar */}
             <View style={styles.avatarBox}>
-              {user.avatar ? (
-                <Image source={user.avatar} style={styles.avatar} />
+              {user.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={styles.avatar} />
               ) : (
-                <View style={styles.avatarPlaceholder} />
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person" size={30} color={colors.textSecondary} />
+                </View>
               )}
             </View>
 
@@ -317,8 +313,8 @@ export default function index() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Color.colorBlack },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background[0] },
   background: { ...StyleSheet.absoluteFillObject },
   safeArea: { flex: 1 },
 
@@ -332,20 +328,19 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   brand: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.ethnocentric,
     fontSize: FontSize.fs_13,
     letterSpacing: 1.5,
   },
-  brandB: { color: Color.colorMediumspringgreen },
+  brandB: { color: colors.accent },
   menuBtn: { padding: 4 },
-  menuIcon: { color: Color.colorWhite, fontSize: 22 },
 
   scrollContent: { paddingHorizontal: 20 },
 
   /* ── Greeting ── */
   greeting: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.erasBoldITC,
     fontSize: 28,
     fontWeight: "800",
@@ -361,23 +356,23 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: Color.colorMediumturquoise,
+    backgroundColor: colors.surface,
     borderRadius: Border.br_12,
     padding: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: Color.colorMediumspringgreen,
+    borderColor: colors.accent,
     gap: 6,
   },
   statLabel: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: 9,
     textAlign: "center",
     lineHeight: 12,
   },
   statValue: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_16,
     fontWeight: "700",
@@ -392,31 +387,30 @@ const styles = StyleSheet.create({
   },
   actionCard: {
     width: "47.5%",
-    backgroundColor: Color.colorMediumturquoise,
+    backgroundColor: colors.surface,
     borderRadius: Border.br_16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(69,255,179,0.1)",
+    borderColor: colors.surfaceBorder,
   },
   actionIconBox: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(69,255,179,0.12)",
+    backgroundColor: colors.accentSoft,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
   },
-  actionIcon: { fontSize: 22 },
   actionTitle: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_15,
     fontWeight: "700",
     marginBottom: 2,
   },
   actionSub: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
@@ -429,13 +423,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_16,
     fontWeight: "700",
   },
   viewAll: {
-    color: Color.colorMediumspringgreen,
+    color: colors.accent,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
   },
@@ -445,33 +439,33 @@ const styles = StyleSheet.create({
   gameCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Color.colorMediumturquoise,
+    backgroundColor: colors.surface,
     borderRadius: Border.br_16,
     padding: 14,
     gap: 12,
     borderWidth: 1,
-    borderColor: "rgba(69,255,179,0.08)",
+    borderColor: colors.surfaceBorder,
   },
   gameSportBox: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "rgba(69,255,179,0.08)",
+    backgroundColor: colors.surfaceBorder,
     justifyContent: "center",
     alignItems: "center",
   },
   gameSportEmoji: { fontSize: 20 },
   gameInfo: { flex: 1, gap: 4 },
   gameOpponent: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "700",
   },
-  gameVs: { color: Color.colorGray300, fontWeight: "400" },
+  gameVs: { color: colors.textSecondary, fontWeight: "400" },
   gameMeta: { flexDirection: "row", gap: 12 },
   gameMetaText: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: 10,
     lineHeight: 15,
@@ -482,25 +476,23 @@ const styles = StyleSheet.create({
     gap: 2,
     paddingHorizontal: 4,
   },
-  resultWon: {},
-  resultLost: {},
   resultIcon: { fontSize: 14 },
   resultText: {
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     fontWeight: "700",
   },
-  resultTextWon: { color: Color.colorMediumspringgreen },
-  resultTextLost: { color: Color.colorOrangered },
+  resultTextWon: { color: colors.accent },
+  resultTextLost: { color: colors.danger },
 
   /* ── Profile Card ── */
   profileCard: {
-    backgroundColor: Color.colorMediumturquoise,
+    backgroundColor: colors.surface,
     borderRadius: Border.br_16,
     padding: Padding.padding_20,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(69,255,179,0.1)",
+    borderColor: colors.surfaceBorder,
     gap: 10,
   },
   avatarBox: { marginBottom: 4 },
@@ -509,16 +501,18 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 16,
-    backgroundColor: Color.colorGainsboro200,
+    backgroundColor: colors.surfaceBorder,
+    justifyContent: "center",
+    alignItems: "center",
   },
   profileName: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_16,
     fontWeight: "700",
   },
   profileLocation: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     marginTop: -4,
@@ -532,13 +526,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   progressTier: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     fontWeight: "600",
   },
   progressGoal: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
@@ -546,13 +540,13 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 8,
     borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: colors.surfaceBorder,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
     borderRadius: 4,
-    backgroundColor: Color.colorMediumspringgreen,
+    backgroundColor: colors.accent,
   },
   progressLabels: {
     width: "100%",
@@ -561,7 +555,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   progressLabel: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
@@ -574,34 +568,34 @@ const styles = StyleSheet.create({
   },
   reviewItem: { alignItems: "center", gap: 2 },
   reviewValue: {
-    color: Color.colorMediumspringgreen,
+    color: colors.accent,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_20,
     fontWeight: "700",
   },
-  reviewNegative: { color: Color.colorOrangered },
+  reviewNegative: { color: colors.danger },
   reviewLabel: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
   reviewDivider: {
     width: 1,
     height: "80%",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: colors.border,
     alignSelf: "center",
   },
 
   profileBtn: {
     marginTop: 4,
     borderWidth: 1.5,
-    borderColor: Color.colorMediumspringgreen,
+    borderColor: colors.accent,
     borderRadius: Border.br_20,
     paddingHorizontal: 32,
     paddingVertical: 12,
   },
   profileBtnText: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "600",

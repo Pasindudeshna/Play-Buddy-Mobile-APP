@@ -3,8 +3,8 @@ import { router } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
 import * as React from "react";
 import { useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,

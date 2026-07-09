@@ -6,8 +6,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Link, router } from "expo-router";
 import * as React from "react";
 import { useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,

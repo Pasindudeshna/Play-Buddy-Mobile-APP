@@ -1,13 +1,13 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import * as React from "react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import MatchFound from "../../components/MatchFound";
 import MultiMatchPicker from "../../components/MultiMatchPicker";
 import {
   ActivityIndicator,
   Modal,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,10 +15,12 @@ import {
   View,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Slider from "@react-native-community/slider";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import LocationPickerMap from "../../components/LocationPickerMap";
 import * as Location from "expo-location";
+import { useTheme, type ThemeColors } from "../../contexts/ThemeContext";
 import { auth } from "../../firebaseConfig";
 import { getCurrentCoords, type Coords } from "../../lib/location";
 import {
@@ -29,7 +31,6 @@ import {
 } from "../../lib/matchQueue";
 import {
   Border,
-  Color,
   FontFamily,
   FontSize,
   Padding,
@@ -64,6 +65,9 @@ const DEFAULT_REGION: Region = {
 };
 
 export default function FindBuddy() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedPlayers, setSelectedPlayers] = useState<string | null>(null);
@@ -232,13 +236,13 @@ export default function FindBuddy() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={["#080909", "rgba(5, 27, 31, 0.97)"]}
+          colors={colors.background}
           start={{ x: 0.2, y: 0 }}
           end={{ x: 0.8, y: 1 }}
           style={styles.background}
         />
         <SafeAreaView style={[styles.safeArea, styles.searchingWrap]}>
-          <ActivityIndicator size="large" color={Color.colorMediumspringgreen} />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.searchingTitle}>Searching for a buddy…</Text>
           <Text style={styles.searchingSubtitle}>
             Looking within {radius}km of your selected location. This can take a moment.
@@ -254,7 +258,7 @@ export default function FindBuddy() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#080909", "rgba(5, 27, 31, 0.97)"]}
+        colors={colors.background}
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.8, y: 1 }}
         style={styles.background}
@@ -268,10 +272,10 @@ export default function FindBuddy() {
           </Text>
           <View style={styles.topBarRight}>
             <TouchableOpacity style={styles.iconBtn}>
-              <Text style={styles.topBarIcon}>👤</Text>
+              <Ionicons name="person-circle-outline" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn}>
-              <Text style={styles.topBarIcon}>☰</Text>
+              <Ionicons name="menu-outline" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -284,7 +288,7 @@ export default function FindBuddy() {
           {/* Page heading */}
           <View style={styles.pageHeading}>
             <View style={styles.headingIconBox}>
-              <Text style={styles.headingIcon}>🔍</Text>
+              <Ionicons name="search" size={22} color={colors.accentText} />
             </View>
             <View>
               <Text style={styles.pageTitle}>Find a Buddy</Text>
@@ -321,7 +325,7 @@ export default function FindBuddy() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Date & Time</Text>
             <View style={styles.dateRow}>
-              <Text style={styles.dateIcon}>📅</Text>
+              <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.dateLabel}>Date</Text>
             </View>
             <TouchableOpacity
@@ -383,7 +387,7 @@ export default function FindBuddy() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Players</Text>
             <View style={styles.playersRow}>
-              <Text style={styles.playersIcon}>👥</Text>
+              <Ionicons name="people-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.playersLabel}>Buddies Needed</Text>
             </View>
             <View style={styles.playerChips}>
@@ -409,7 +413,7 @@ export default function FindBuddy() {
           <View style={[styles.card, { zIndex: 10 }]}>
             <Text style={styles.cardTitle}>Location</Text>
             <View style={styles.playersRow}>
-              <Text style={styles.playersIcon}>📍</Text>
+              <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.playersLabel}>Select your location</Text>
             </View>
 
@@ -418,15 +422,16 @@ export default function FindBuddy() {
               onPress={handleOpenMapPicker}
               activeOpacity={0.85}
             >
+              <Ionicons name="location" size={16} color={colors.accent} />
               <Text style={styles.mapPickBtnText}>
-                {pickedLabel ? `📍 ${pickedLabel}` : "📍 Pick exact location on map"}
+                {pickedLabel ?? "Pick exact location on map"}
               </Text>
               {pickedCoords && (
                 <TouchableOpacity
                   onPress={() => { setPickedCoords(null); setPickedLabel(null); }}
                   hitSlop={8}
                 >
-                  <Text style={styles.mapPickClear}>✕</Text>
+                  <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
@@ -442,9 +447,9 @@ export default function FindBuddy() {
               step={1}
               value={radius}
               onValueChange={setRadius}
-              minimumTrackTintColor={Color.colorMediumspringgreen}
-              maximumTrackTintColor="rgba(255,255,255,0.15)"
-              thumbTintColor={Color.colorMediumspringgreen}
+              minimumTrackTintColor={colors.accent}
+              maximumTrackTintColor={colors.surfaceBorder}
+              thumbTintColor={colors.accent}
             />
             <View style={styles.sliderFooter}>
               <Text style={styles.sliderFooterText}>1 km</Text>
@@ -459,7 +464,7 @@ export default function FindBuddy() {
             onPress={handleFindBuddy}
             disabled={!canSearch}
             >
-            <Text style={styles.findBtnIcon}>🔍</Text>
+            <Ionicons name="search" size={16} color={colors.accentText} />
             <Text style={styles.findBtnText}>Find my Play Buddy</Text>
             </TouchableOpacity>
 
@@ -481,7 +486,8 @@ export default function FindBuddy() {
 
           <SafeAreaView style={styles.mapModalTopBar} pointerEvents="box-none">
             <TouchableOpacity style={styles.mapModalCloseBtn} onPress={() => setShowMapPicker(false)}>
-              <Text style={styles.mapModalCloseBtnText}>✕ Close</Text>
+              <Ionicons name="close" size={16} color={colors.textPrimary} />
+              <Text style={styles.mapModalCloseBtnText}>Close</Text>
             </TouchableOpacity>
             <Text style={styles.mapModalHint}>Tap or drag the pin to set your spot</Text>
           </SafeAreaView>
@@ -502,8 +508,8 @@ export default function FindBuddy() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Color.colorBlack },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background[0] },
   background: { ...StyleSheet.absoluteFillObject },
   safeArea: { flex: 1 },
 
@@ -516,22 +522,21 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   brand: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.ethnocentric,
     fontSize: FontSize.fs_13,
     letterSpacing: 1.5,
   },
-  brandB: { color: Color.colorMediumspringgreen },
+  brandB: { color: colors.accent },
   topBarRight: { flexDirection: "row", gap: 10 },
   iconBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: colors.surfaceBorder,
     justifyContent: "center",
     alignItems: "center",
   },
-  topBarIcon: { fontSize: 18 },
 
   scrollContent: { paddingHorizontal: 20, paddingTop: 4 },
 
@@ -546,19 +551,18 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: Color.colorMediumspringgreen,
+    backgroundColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
   },
-  headingIcon: { fontSize: 24 },
   pageTitle: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_20,
     fontWeight: "700",
   },
   pageSubtitle: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_11,
     marginTop: 2,
@@ -566,16 +570,16 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: Color.colorMediumturquoise,
+    backgroundColor: colors.surface,
     borderRadius: Border.br_16,
     padding: Padding.padding_16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "rgba(69,255,179,0.07)",
+    borderColor: colors.surfaceBorder,
     gap: 12,
   },
   cardTitle: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_16,
     fontWeight: "700",
@@ -589,7 +593,7 @@ const styles = StyleSheet.create({
   },
   sportTile: {
     width: "47%",
-    backgroundColor: Color.color1Gray200,
+    backgroundColor: colors.inputBg,
     borderRadius: Border.br_12,
     paddingVertical: 20,
     alignItems: "center",
@@ -598,53 +602,52 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   sportTileSelected: {
-    borderColor: Color.colorMediumspringgreen,
-    backgroundColor: "rgba(69,255,179,0.06)",
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   sportEmoji: { fontSize: 32 },
   sportLabel: {
-    color: Color.colorGray400,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "600",
   },
-  sportLabelSelected: { color: Color.colorWhite },
+  sportLabelSelected: { color: colors.textPrimary },
 
   /* Date */
   dateRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: -4 },
-  dateIcon: { fontSize: 16 },
   dateLabel: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
   },
   dateInput: {
-    backgroundColor: Color.color1Gray200,
+    backgroundColor: colors.inputBg,
     borderRadius: Border.br_20,
     height: 44,
     paddingHorizontal: 16,
     justifyContent: "center",
   },
   dateInputText: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
   },
   dateInputPlaceholder: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
   },
   dateDoneBtn: {
     alignSelf: "flex-end",
-    backgroundColor: Color.colorMediumspringgreen,
+    backgroundColor: colors.accent,
     borderRadius: Border.br_20,
     paddingHorizontal: 20,
     paddingVertical: 8,
     marginTop: -4,
   },
   dateDoneBtnText: {
-    color: Color.colorBlack,
+    color: colors.accentText,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "700",
@@ -655,7 +658,7 @@ const styles = StyleSheet.create({
   timeRow: { flexDirection: "row", gap: 8 },
   timeChip: {
     flex: 1,
-    backgroundColor: Color.color1Gray200,
+    backgroundColor: colors.inputBg,
     borderRadius: Border.br_10,
     paddingVertical: 9,
     alignItems: "center",
@@ -663,21 +666,20 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   timeChipActive: {
-    borderColor: Color.colorMediumspringgreen,
-    backgroundColor: "rgba(69,255,179,0.08)",
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   timeChipText: {
-    color: Color.colorGray400,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_11,
   },
-  timeChipTextActive: { color: Color.colorMediumspringgreen },
+  timeChipTextActive: { color: colors.accent },
 
   /* Players */
   playersRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: -4 },
-  playersIcon: { fontSize: 16 },
   playersLabel: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
   },
@@ -686,49 +688,45 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: Border.br_12,
-    backgroundColor: Color.color1Gray200,
+    backgroundColor: colors.inputBg,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "transparent",
   },
   playerChipActive: {
-    borderColor: Color.colorMediumspringgreen,
-    backgroundColor: "rgba(69,255,179,0.08)",
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   playerChipText: {
-    color: Color.colorGray400,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_15,
     fontWeight: "600",
   },
-  playerChipTextActive: { color: Color.colorMediumspringgreen },
+  playerChipTextActive: { color: colors.accent },
 
   /* Map picker trigger */
   mapPickBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: Color.color1Gray200,
+    backgroundColor: colors.inputBg,
     borderRadius: Border.br_20,
     minHeight: 44,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    gap: 8,
   },
   mapPickBtnText: {
     flex: 1,
-    color: Color.colorMediumspringgreen,
+    color: colors.accent,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
   },
-  mapPickClear: {
-    color: Color.colorGray300,
-    fontSize: 14,
-    paddingLeft: 10,
-  },
 
   /* Map picker modal */
-  mapModalContainer: { flex: 1, backgroundColor: Color.colorBlack },
+  mapModalContainer: { flex: 1, backgroundColor: colors.background[0] },
   mapModalTopBar: {
     position: "absolute",
     top: 0,
@@ -740,20 +738,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mapModalCloseBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: "rgba(8,9,9,0.85)",
     borderRadius: Border.br_20,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
   mapModalCloseBtnText: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
   },
   mapModalHint: {
     alignSelf: "center",
     backgroundColor: "rgba(8,9,9,0.85)",
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_11,
     borderRadius: Border.br_20,
@@ -769,14 +770,14 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   mapModalConfirmBtn: {
-    backgroundColor: Color.colorMediumspringgreen,
+    backgroundColor: colors.accent,
     borderRadius: Border.br_20,
     height: 54,
     justifyContent: "center",
     alignItems: "center",
   },
   mapModalConfirmBtnText: {
-    color: Color.colorBlack,
+    color: colors.accentText,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_15,
     fontWeight: "700",
@@ -788,12 +789,12 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   sliderLabel: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
   },
   sliderValue: {
-    color: Color.colorMediumspringgreen,
+    color: colors.accent,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     fontWeight: "600",
@@ -805,7 +806,7 @@ const styles = StyleSheet.create({
     marginTop: -8,
   },
   sliderFooterText: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
@@ -816,28 +817,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: Color.colorMediumspringgreen,
+    backgroundColor: colors.accent,
     borderRadius: Border.br_20,
     height: 54,
     marginTop: 4,
     marginBottom: 10,
   },
   findBtnDisabled: { opacity: 0.45 },
-  findBtnIcon: { fontSize: 16 },
   findBtnText: {
-    color: Color.colorBlack,
+    color: colors.accentText,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_15,
     fontWeight: "700",
   },
   findHint: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_11,
     textAlign: "center",
   },
   findHintError: {
-    color: Color.colorOrangered,
+    color: colors.danger,
   },
 
   /* Searching state */
@@ -848,14 +848,14 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   searchingTitle: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_20,
     fontWeight: "700",
     marginTop: 8,
   },
   searchingSubtitle: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     textAlign: "center",
@@ -863,13 +863,13 @@ const styles = StyleSheet.create({
   cancelSearchBtn: {
     marginTop: 12,
     borderWidth: 1.5,
-    borderColor: Color.colorMediumspringgreen,
+    borderColor: colors.accent,
     borderRadius: Border.br_20,
     paddingHorizontal: 28,
     paddingVertical: 12,
   },
   cancelSearchBtnText: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "600",

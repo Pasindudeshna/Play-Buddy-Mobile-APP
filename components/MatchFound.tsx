@@ -4,6 +4,7 @@ import { doc, getDoc, GeoPoint, onSnapshot, Timestamp } from "firebase/firestore
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { distanceKm } from "../lib/location";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Animated,
@@ -11,7 +12,6 @@ import {
   Easing,
   Image,
   Modal,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,

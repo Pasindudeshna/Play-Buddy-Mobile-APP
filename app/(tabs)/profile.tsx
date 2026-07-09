@@ -1,42 +1,48 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { doc, onSnapshot } from "firebase/firestore";
 import * as React from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  SafeAreaView,
+  ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
-  Image,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme, type ThemeColors } from "../../contexts/ThemeContext";
+import { auth, db } from "../../firebaseConfig";
 import {
   Border,
-  Color,
   FontFamily,
   FontSize,
   Padding,
-  Gap,
 } from "../../styles/GlobalStyles";
 
-/* ── Mock data ── */
-const USER = {
-  fullName: "Ashvin Fernando",
-  location: "Baththaramulla",
-  tier: "Silver",
-  nextTier: "Gold",
-  gamesPlayed: 10,
+/* Gamification fields (tier/games/reviews) have no backend yet — placeholder
+   until a match-history system exists. Identity/contact fields below are real. */
+const STATS_PLACEHOLDER = {
+  tier: "Bronze",
+  nextTier: "Silver",
+  gamesPlayed: 0,
   gamesNeeded: 30,
-  positive: 10,
-  negative: 1,
-  totalGames: 10,
-  avatar: null,
+  positive: 0,
+  negative: 0,
+  totalGames: 0,
 };
 
-const EMERGENCY = {
-  contact: "Sandesh Fernando",
-  phone: "+9471-234-5678",
-  conditions: "None",
+type UserProfile = {
+  fullName: string;
+  city: string;
+  photoURL: string | null;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  medicalConditions: string;
 };
 
 const RECENT_GAMES = [
@@ -61,12 +67,57 @@ const RECENT_GAMES = [
 ];
 
 export default function ProfilePage() {
-  const progress = USER.gamesPlayed / USER.gamesNeeded;
+  const { colors, isDark, toggleTheme } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (snap) => {
+      if (snap.exists()) {
+        const u = snap.data() as any;
+        setProfile({
+          fullName: u.fullName ?? "Player",
+          city: u.city ?? "Location not set",
+          photoURL: u.photoURL ?? null,
+          emergencyContactName: u.emergencyContactName ?? "Not set",
+          emergencyContactPhone: u.emergencyContactPhone ?? "Not set",
+          medicalConditions: u.medicalConditions ?? "None",
+        });
+      }
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const progress = STATS_PLACEHOLDER.gamesPlayed / STATS_PLACEHOLDER.gamesNeeded;
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={colors.background}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.8, y: 1 }}
+          style={styles.background}
+        />
+        <View style={styles.loadingBox}>
+          <ActivityIndicator color={colors.accent} size="large" />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#080909", "rgba(5, 27, 31, 0.97)"]}
+        colors={colors.background}
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.8, y: 1 }}
         style={styles.background}
@@ -81,11 +132,10 @@ export default function ProfilePage() {
           </Text>
           <View style={styles.topBarRight}>
             <TouchableOpacity style={styles.iconBtn}>
-              {/* Person icon */}
-              <Text style={styles.topBarIcon}>👤</Text>
+              <Ionicons name="person-circle-outline" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn}>
-              <Text style={styles.topBarIcon}>☰</Text>
+              <Ionicons name="menu-outline" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -99,29 +149,31 @@ export default function ProfilePage() {
           <View style={styles.profileCard}>
             {/* Avatar */}
             <View style={styles.avatarBox}>
-              {USER.avatar ? (
-                <Image source={USER.avatar} style={styles.avatar} />
+              {profile?.photoURL ? (
+                <Image source={{ uri: profile.photoURL }} style={styles.avatar} />
               ) : (
-                <View style={styles.avatarPlaceholder} />
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person" size={32} color={colors.textSecondary} />
+                </View>
               )}
             </View>
 
-            <Text style={styles.profileName}>{USER.fullName}</Text>
-            <Text style={styles.profileLocation}>{USER.location}</Text>
+            <Text style={styles.profileName}>{profile?.fullName ?? "Player"}</Text>
+            <Text style={styles.profileLocation}>{profile?.city ?? "Location not set"}</Text>
 
             {/* Tier progress */}
             <View style={styles.progressRow}>
-              <Text style={styles.progressTier}>{USER.tier}</Text>
+              <Text style={styles.progressTier}>{STATS_PLACEHOLDER.tier}</Text>
               <Text style={styles.progressGoal}>
-                {USER.gamesNeeded - USER.gamesPlayed} games to gold
+                {STATS_PLACEHOLDER.gamesNeeded - STATS_PLACEHOLDER.gamesPlayed} games to gold
               </Text>
             </View>
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
             </View>
             <View style={styles.progressLabels}>
-              <Text style={styles.progressLabel}>{USER.gamesPlayed} games</Text>
-              <Text style={styles.progressLabel}>{USER.gamesNeeded}</Text>
+              <Text style={styles.progressLabel}>{STATS_PLACEHOLDER.gamesPlayed} games</Text>
+              <Text style={styles.progressLabel}>{STATS_PLACEHOLDER.gamesNeeded}</Text>
             </View>
 
             {/* Divider */}
@@ -130,52 +182,80 @@ export default function ProfilePage() {
             {/* Review stats */}
             <View style={styles.reviewRow}>
               <View style={styles.reviewItem}>
-                <Text style={styles.reviewValue}>{USER.positive}</Text>
+                <Text style={styles.reviewValue}>{STATS_PLACEHOLDER.positive}</Text>
                 <Text style={styles.reviewLabel}>Positive</Text>
               </View>
               <View style={styles.reviewDivider} />
               <View style={styles.reviewItem}>
                 <Text style={[styles.reviewValue, styles.reviewNegative]}>
-                  {USER.negative}
+                  {STATS_PLACEHOLDER.negative}
                 </Text>
                 <Text style={styles.reviewLabel}>Negative</Text>
               </View>
               <View style={styles.reviewDivider} />
               <View style={styles.reviewItem}>
-                <Text style={styles.reviewValue}>{USER.totalGames}</Text>
+                <Text style={styles.reviewValue}>{STATS_PLACEHOLDER.totalGames}</Text>
                 <Text style={styles.reviewLabel}>Games</Text>
               </View>
             </View>
 
             {/* Edit button */}
-            <TouchableOpacity style={styles.editBtn} activeOpacity={0.8}>
-              <Text style={styles.editIcon}>✏️</Text>
+            <TouchableOpacity
+              style={styles.editBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push("/edit-profile")}
+            >
+              <Ionicons name="pencil" size={18} color={colors.textPrimary} />
             </TouchableOpacity>
+          </View>
+
+          {/* ── Appearance Card ── */}
+          <View style={styles.appearanceCard}>
+            <View style={styles.appearanceLeft}>
+              <Ionicons
+                name={isDark ? "moon" : "sunny"}
+                size={20}
+                color={colors.accent}
+              />
+              <Text style={styles.appearanceLabel}>
+                {isDark ? "Dark Mode" : "Light Mode"}
+              </Text>
+            </View>
+            <Switch
+              value={isDark}
+              onValueChange={toggleTheme}
+              trackColor={{ false: colors.surfaceBorder, true: colors.accentSoft }}
+              thumbColor={colors.accent}
+            />
           </View>
 
           {/* ── Emergency Information Card ── */}
           <View style={styles.emergencyCard}>
             <View style={styles.emergencyHeader}>
-              <Text style={styles.emergencyHeartIcon}>❤️</Text>
+              <Ionicons name="heart" size={16} color={colors.danger} />
               <Text style={styles.emergencyTitle}>Emergency Information</Text>
             </View>
 
             <View style={styles.emergencyRow}>
               <Text style={styles.emergencyKey}>Emergency Contact</Text>
-              <Text style={styles.emergencyValue}>{EMERGENCY.contact}</Text>
+              <Text style={styles.emergencyValue}>{profile?.emergencyContactName ?? "Not set"}</Text>
             </View>
             <View style={styles.emergencyRow}>
               <Text style={styles.emergencyKey}>Contact Phone</Text>
-              <Text style={styles.emergencyValue}>{EMERGENCY.phone}</Text>
+              <Text style={styles.emergencyValue}>{profile?.emergencyContactPhone ?? "Not set"}</Text>
             </View>
             <View style={styles.emergencyRow}>
               <Text style={styles.emergencyKey}>Medical Conditions</Text>
-              <Text style={styles.emergencyValue}>{EMERGENCY.conditions}</Text>
+              <Text style={styles.emergencyValue}>{profile?.medicalConditions ?? "None"}</Text>
             </View>
 
             {/* View Emergency Contacts link */}
-            <TouchableOpacity style={styles.emergencyLink} activeOpacity={0.8}>
-              <Text style={styles.emergencyLinkIcon}>📞</Text>
+            <TouchableOpacity
+              style={styles.emergencyLink}
+              activeOpacity={0.8}
+              onPress={() => router.push("/emergency")}
+            >
+              <Ionicons name="call" size={16} color={colors.accent} />
               <Text style={styles.emergencyLinkText}>View Emergency Contacts</Text>
             </TouchableOpacity>
           </View>
@@ -233,10 +313,11 @@ export default function ProfilePage() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Color.colorBlack },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background[0] },
   background: { ...StyleSheet.absoluteFillObject },
   safeArea: { flex: 1 },
+  loadingBox: { flex: 1, justifyContent: "center", alignItems: "center" },
 
   /* ── Top bar ── */
   topBar: {
@@ -248,12 +329,12 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   brand: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.ethnocentric,
     fontSize: FontSize.fs_13,
     letterSpacing: 1.5,
   },
-  brandB: { color: Color.colorMediumspringgreen },
+  brandB: { color: colors.accent },
   topBarRight: {
     flexDirection: "row",
     alignItems: "center",
@@ -263,22 +344,20 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: colors.surfaceBorder,
     justifyContent: "center",
     alignItems: "center",
   },
-  topBarIcon: { fontSize: 18, color: Color.colorWhite },
-
   scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
 
   /* ── Profile Card ── */
   profileCard: {
-    backgroundColor: Color.colorMediumturquoise,
+    backgroundColor: colors.surface,
     borderRadius: Border.br_16,
     padding: Padding.padding_20,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(69,255,179,0.08)",
+    borderColor: colors.surfaceBorder,
     marginBottom: 16,
     gap: 10,
   },
@@ -288,16 +367,18 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 16,
-    backgroundColor: Color.colorGainsboro200,
+    backgroundColor: colors.surfaceBorder,
+    justifyContent: "center",
+    alignItems: "center",
   },
   profileName: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_16,
     fontWeight: "700",
   },
   profileLocation: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     marginTop: -4,
@@ -311,13 +392,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   progressTier: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     fontWeight: "600",
   },
   progressGoal: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
@@ -325,13 +406,13 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 8,
     borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: colors.surfaceBorder,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
     borderRadius: 4,
-    backgroundColor: Color.colorMediumspringgreen,
+    backgroundColor: colors.accent,
   },
   progressLabels: {
     width: "100%",
@@ -340,7 +421,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   progressLabel: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
@@ -348,7 +429,7 @@ const styles = StyleSheet.create({
   divider: {
     width: "100%",
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: colors.border,
     marginVertical: 4,
   },
 
@@ -359,20 +440,20 @@ const styles = StyleSheet.create({
   },
   reviewItem: { alignItems: "center", gap: 2 },
   reviewValue: {
-    color: Color.colorMediumspringgreen,
+    color: colors.accent,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_20,
     fontWeight: "700",
   },
-  reviewNegative: { color: Color.colorOrangered },
+  reviewNegative: { color: colors.danger },
   reviewLabel: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
   reviewDivider: {
     width: 1,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: colors.border,
     alignSelf: "stretch",
   },
 
@@ -381,22 +462,41 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: colors.surfaceBorder,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 4,
   },
-  editIcon: { fontSize: 18 },
+
+  /* ── Appearance Card ── */
+  appearanceCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: Border.br_16,
+    padding: Padding.padding_16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  appearanceLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  appearanceLabel: {
+    color: colors.textPrimary,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_13,
+    fontWeight: "600",
+  },
 
   /* ── Emergency Card ── */
   emergencyCard: {
     borderRadius: Border.br_16,
     borderWidth: 1.5,
-    borderColor: Color.colorOrangered,
+    borderColor: colors.danger,
     padding: Padding.padding_16,
     marginBottom: 24,
     gap: 10,
-    backgroundColor: "rgba(219,34,17,0.04)",
+    backgroundColor: colors.dangerSoft,
   },
   emergencyHeader: {
     flexDirection: "row",
@@ -404,9 +504,8 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 2,
   },
-  emergencyHeartIcon: { fontSize: 16 },
   emergencyTitle: {
-    color: Color.colorMediumspringgreen,
+    color: colors.accent,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "700",
@@ -417,12 +516,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emergencyKey: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
   },
   emergencyValue: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     fontWeight: "600",
@@ -434,9 +533,8 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 4,
   },
-  emergencyLinkIcon: { fontSize: 16 },
   emergencyLinkText: {
-    color: Color.colorMediumspringgreen,
+    color: colors.accent,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "600",
@@ -450,13 +548,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_16,
     fontWeight: "700",
   },
   viewAll: {
-    color: Color.colorMediumspringgreen,
+    color: colors.accent,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
   },
@@ -466,33 +564,33 @@ const styles = StyleSheet.create({
   gameCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Color.colorMediumturquoise,
+    backgroundColor: colors.surface,
     borderRadius: Border.br_16,
     padding: 14,
     gap: 12,
     borderWidth: 1,
-    borderColor: "rgba(69,255,179,0.08)",
+    borderColor: colors.surfaceBorder,
   },
   gameSportBox: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "rgba(69,255,179,0.08)",
+    backgroundColor: colors.surfaceBorder,
     justifyContent: "center",
     alignItems: "center",
   },
   gameSportEmoji: { fontSize: 20 },
   gameInfo: { flex: 1, gap: 4 },
   gameOpponent: {
-    color: Color.colorWhite,
+    color: colors.textPrimary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "700",
   },
-  gameVs: { color: Color.colorGray300, fontWeight: "400" },
+  gameVs: { color: colors.textSecondary, fontWeight: "400" },
   gameMeta: { flexDirection: "row", gap: 12 },
   gameMetaText: {
-    color: Color.colorGray300,
+    color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: 10,
     lineHeight: 15,
@@ -508,6 +606,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.fs_12,
     fontWeight: "700",
   },
-  resultTextWon: { color: Color.colorMediumspringgreen },
-  resultTextLost: { color: Color.colorOrangered },
+  resultTextWon: { color: colors.accent },
+  resultTextLost: { color: colors.danger },
 });

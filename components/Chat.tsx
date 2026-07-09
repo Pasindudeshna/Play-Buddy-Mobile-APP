@@ -12,23 +12,23 @@ import {
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import {
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, db } from "../firebaseConfig";
 import {
-    Border,
-    Color,
-    FontFamily,
-    FontSize,
-    Padding,
+  Border,
+  Color,
+  FontFamily,
+  FontSize,
+  Padding,
 } from "../styles/GlobalStyles";
 
 type Message = {

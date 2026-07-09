@@ -1,9 +1,9 @@
 ﻿import { LinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
 import * as React from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,

@@ -4,11 +4,11 @@ import { router } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
 import * as React from "react";
 import { useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { auth, db } from "../../../firebaseConfig";
+import { uploadImageToCloudinary } from "../../../lib/cloudinary";
 import {
   Border,
   Color,
@@ -32,30 +33,6 @@ export default function SignupKYC() {
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedKYC, setAgreedKYC] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-
-    const uploadImageToCloudinary = async (imageUri) => {
-    const data = new FormData();
-  
-    data.append("file", {
-      uri: imageUri,
-      type: "image/jpeg",
-      name: "upload.jpg",
-    });
-  
-    data.append("upload_preset", "playbuddy");
-    data.append("cloud_name", "dyyb2dkgx");
-  
-    const res = await fetch(
-      "https://api.cloudinary.com/v1_1/dyyb2dkgx/image/upload",
-      {
-        method: "POST",
-        body: data,
-      }
-    );
-  
-    const result = await res.json();
-    return result.secure_url;
-  };
 
   const pickImage = async (side: "front" | "back") => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();

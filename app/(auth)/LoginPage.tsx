@@ -3,11 +3,11 @@ import { Link, router } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import * as React from "react";
 import { useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
