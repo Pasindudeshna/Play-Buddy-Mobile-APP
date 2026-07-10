@@ -68,40 +68,28 @@ service cloud.firestore {
         || isAdmin()
         || (isSignedIn() && resource.data.ownerId == request.auth.uid);
 
-      // Owners self-register; status is always forced to 'pending' on
-      // create — approval can only ever be granted by an admin update,
-      // never by the creator.
+      // Owners self-register and are auto-approved — no admin review gate.
+      // (The admin approve/reject flow in facility-web still exists for
+      // manual moderation later, but nothing routes new listings through
+      // 'pending' anymore.)
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.status == 'pending'
+        && request.resource.data.status == 'approved'
         && request.resource.data.sports is list
         && request.resource.data.sports.size() > 0
         && request.resource.data.location is latlng;
 
-      // Admin can update anything (approve/reject/edit). Owner can only
-      // edit their own doc while it's pending/rejected, cannot change
-      // ownerId, and can only ever move status back to 'pending'
-      // (resubmit-after-rejection flow) — never to 'approved'.
-      //
-      // Exception: pricing/hours (used for ground booking + slot
-      // allocation) are not moderation-worthy content, so an owner may
-      // update *only* those fields on an already-approved listing without
-      // re-triggering admin review.
+      // Admin can update anything (including manually moving a listing to
+      // 'pending'/'rejected' if moderation is needed later). An owner may
+      // freely edit their own listing's fields (name, pricing, photos,
+      // etc.) as long as they don't change ownerId and it lands back at
+      // 'approved' — they can never self-assign 'pending'/'rejected'.
       allow update: if isAdmin()
         || (
           isSignedIn()
           && resource.data.ownerId == request.auth.uid
           && request.resource.data.ownerId == resource.data.ownerId
-          && resource.data.status in ['pending', 'rejected']
-          && request.resource.data.status == 'pending'
-        )
-        || (
-          isSignedIn()
-          && resource.data.ownerId == request.auth.uid
-          && resource.data.status == 'approved'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-            ['pricePerHour', 'currency', 'openingTime', 'closingTime', 'slotDurationMinutes', 'updatedAt']
-          )
+          && request.resource.data.status == 'approved'
         );
 
       // Owner can withdraw their own listing unless it's currently live

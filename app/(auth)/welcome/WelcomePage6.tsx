@@ -3,6 +3,7 @@ import { Link } from "expo-router";
 import * as React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,39 +21,35 @@ export default function WelcomePage6() {
         style={styles.background}
       />
       <SafeAreaView style={styles.safeArea}>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.brand}>PLAY BUDDY</Text>
-        </View>
-
-        {/* Main content — pushed toward lower-middle */}
-        <View style={styles.content}>
-          <Text style={styles.title}>Ready To Play?</Text>
-          <Text style={styles.subtitle}>
-            Join thousands of players already finding their perfect game buddies.
-          </Text>
-        </View>
-
-        {/* Bottom section */}
-        <View style={styles.bottom}>
-          {/* Back / Create Free Account buttons */}
-          <View style={styles.buttonsRow}>
-            {/* <Link href="/welcome/WelcomePage5" asChild>
-              <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.75}>
-                <Text style={styles.secondaryButtonText}>‹ Back</Text>
-              </TouchableOpacity>
-            </Link> */}
-            <Link href="../registration/SignupAccount" asChild>
-              <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
-                <Text style={styles.primaryButtonText}>Create Free Account</Text>
-              </TouchableOpacity>
-            </Link>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.brand}>PLAY BUDDY</Text>
           </View>
 
-          
-        </View>
+          {/* Main content — pushed toward lower-middle */}
+          <View style={styles.content}>
+            <Text style={styles.title}>Ready To Play?</Text>
+            <Text style={styles.subtitle}>
+              Join thousands of players already finding their perfect game buddies.
+            </Text>
+          </View>
 
+          {/* Bottom section */}
+          <View style={styles.bottom}>
+            {/* Back / Create Free Account buttons */}
+            <View style={styles.buttonsRow}>
+              <Link href="../registration/SignupAccount" asChild>
+                <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
+                  <Text style={styles.primaryButtonText}>Create Free Account</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -69,8 +66,10 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     paddingHorizontal: 24,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingBottom: 12,
-    justifyContent: "space-between",
   },
 
   /* ── Header ── */

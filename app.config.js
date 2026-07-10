@@ -6,10 +6,10 @@
 module.exports = {
   expo: {
     name: "playbuddy",
-    slug: "playbuddy",
+    slug: "",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/icon.png",
+    icon: "./assets/images/logoPB.png",
     scheme: "playbuddy",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,

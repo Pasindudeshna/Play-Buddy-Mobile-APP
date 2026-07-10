@@ -39,6 +39,8 @@ type VenueOption = {
   votes: Record<string, boolean>;
   voteCount: number;
   source?: "registered" | "places";
+  /** Uploaded ground photo — only ever set for registered facilities (Google Places results only carry a photoRef, which needs a server-side call to resolve, so those fall back to the map thumbnail). */
+  photoUrl?: string | null;
 };
 
 type MatchDoc = {
@@ -54,6 +56,7 @@ const castVote = (matchId: string, venueId: string) =>
   callMatchApi("/api/cast-vote", { matchId, venueId });
 const confirmVenue = (matchId: string, venueId: string) =>
   callMatchApi("/api/confirm-venue", { matchId, venueId });
+const syncVenues = (matchId: string) => callMatchApi("/api/sync-venues", { matchId });
 
 export default function Venues({ matchId }: VenuesProps) {
   const [loading, setLoading] = useState(true);
@@ -68,6 +71,10 @@ export default function Venues({ matchId }: VenuesProps) {
       return;
     }
 
+    // Picks up any facility approved after this match's venue list was first
+    // generated — venueOptions is otherwise a one-time snapshot.
+    syncVenues(matchId).catch(() => {});
+
     const unsubMatch = onSnapshot(doc(db, "matches", matchId), (snap) => {
       setMatch(snap.exists() ? (snap.data() as MatchDoc) : null);
     });
@@ -77,7 +84,10 @@ export default function Venues({ matchId }: VenuesProps) {
       (snap) => {
         const list = snap.docs
           .map((d) => ({ id: d.id, ...(d.data() as Omit<VenueOption, "id">) }))
-          .sort((a, b) => a.distanceFromMidpointKm - b.distanceFromMidpointKm);
+          .sort((a, b) => {
+            if (a.source !== b.source) return a.source === "registered" ? -1 : 1;
+            return a.distanceFromMidpointKm - b.distanceFromMidpointKm;
+          });
         setVenues(list);
         setLoading(false);
       }
@@ -106,7 +116,7 @@ export default function Venues({ matchId }: VenuesProps) {
     setBusyVenueId(venueId);
     try {
       await confirmVenue(matchId, venueId);
-      router.push({ pathname: "/ground-confirmation", params: { matchId } });
+      router.push({ pathname: "/payment", params: { matchId } });
     } catch (e: any) {
       alert(e?.message ?? "Couldn't confirm venue.");
     } finally {
@@ -162,9 +172,9 @@ export default function Venues({ matchId }: VenuesProps) {
             <TouchableOpacity
               style={styles.continueBanner}
               activeOpacity={0.85}
-              onPress={() => router.push({ pathname: "/ground-confirmation", params: { matchId } })}
+              onPress={() => router.push({ pathname: "/payment", params: { matchId } })}
             >
-              <Text style={styles.continueBannerText}>Venue confirmed — continue to booking</Text>
+              <Text style={styles.continueBannerText}>Venue confirmed — continue to payment</Text>
               <Text style={styles.continueBannerArrow}>→</Text>
             </TouchableOpacity>
           )}
@@ -193,7 +203,9 @@ export default function Venues({ matchId }: VenuesProps) {
                       style={styles.venueMap}
                       resizeMode="cover"
                       source={{
-                        uri: `https://staticmap.openstreetmap.de/staticmap.php?center=${venue.location.latitude},${venue.location.longitude}&zoom=15&size=600x240&maptype=mapnik&markers=${venue.location.latitude},${venue.location.longitude},red-pushpin`,
+                        uri:
+                          venue.photoUrl ??
+                          `https://staticmap.openstreetmap.de/staticmap.php?center=${venue.location.latitude},${venue.location.longitude}&zoom=15&size=600x240&maptype=mapnik&markers=${venue.location.latitude},${venue.location.longitude},red-pushpin`,
                       }}
                     />
 
@@ -257,9 +269,13 @@ export default function Venues({ matchId }: VenuesProps) {
                           disabled={isBusy || isSelected}
                           onPress={() => handleConfirm(venue.id)}
                         >
-                          <Text style={styles.bookBtnText}>
-                            {isSelected ? "Confirmed" : "Confirm This"}
-                          </Text>
+                          {isBusy ? (
+                            <ActivityIndicator size="small" color={Color.colorWhite} />
+                          ) : (
+                            <Text style={styles.bookBtnText}>
+                              {isSelected ? "Confirmed" : "Confirm This"}
+                            </Text>
+                          )}
                         </TouchableOpacity>
                       </View>
                     </View>

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,9 +20,10 @@ type CandidateProfile = {
   name: string;
   tier: string;
   games: number;
+  photoURL: string | null;
 };
 
-const DEFAULT_PROFILE: CandidateProfile = { name: "Play Buddy", tier: "Bronze", games: 0 };
+const DEFAULT_PROFILE: CandidateProfile = { name: "Play Buddy", tier: "Bronze", games: 0, photoURL: null };
 
 type MultiMatchPickerProps = {
   ticketId: string;
@@ -53,6 +55,7 @@ export default function MultiMatchPicker({ ticketId, onBack }: MultiMatchPickerP
                 name: u.fullName ?? DEFAULT_PROFILE.name,
                 tier: u.tier ?? DEFAULT_PROFILE.tier,
                 games: u.totalGames ?? 0,
+                photoURL: u.photoURL ?? null,
               },
             ] as const;
           } catch {
@@ -119,7 +122,11 @@ export default function MultiMatchPicker({ ticketId, onBack }: MultiMatchPickerP
               const isBusy = choosingId === candidate.candidateTicketId;
               return (
                 <View key={candidate.candidateTicketId} style={styles.card}>
-                  <View style={styles.avatarPlaceholder} />
+                  {profile.photoURL ? (
+                    <Image source={{ uri: profile.photoURL }} style={styles.avatar} />
+                  ) : (
+                    <View style={styles.avatarPlaceholder} />
+                  )}
                   <View style={styles.info}>
                     <Text style={styles.name}>{profile.name}</Text>
                     <View style={styles.metaRow}>
@@ -228,6 +235,11 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 1,
     borderColor: "rgba(69,255,179,0.08)",
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
   },
   avatarPlaceholder: {
     width: 56,

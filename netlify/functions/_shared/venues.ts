@@ -129,7 +129,7 @@ type PlacesNearbyResult = {
   photos?: { photo_reference: string }[];
 };
 
-type VenueOptionDoc = {
+export type VenueOptionDoc = {
   placeId: string | null;
   facilityId: string | null;
   name: string;
@@ -229,12 +229,88 @@ export async function createVenueOptionsForMatch(
     }
   }
 
-  venues.sort((a, b) => fairnessScore(a.distanceByPlayerKm) - fairnessScore(b.distanceByPlayerKm));
+  // Registered facilities always rank above Places results; within each group, rank by fairness.
+  venues.sort((a, b) => {
+    if (a.source !== b.source) return a.source === "registered" ? -1 : 1;
+    return fairnessScore(a.distanceByPlayerKm) - fairnessScore(b.distanceByPlayerKm);
+  });
 
   const batch = db.batch();
   for (const { _id, ...venue } of venues.slice(0, MAX_VENUE_OPTIONS)) {
     batch.set(db.collection(`matches/${matchId}/venueOptions`).doc(_id), venue);
   }
+  await batch.commit();
+}
+
+/**
+ * Re-scans for registered facilities near a match's midpoint and merges any
+ * newly-approved ones into `venueOptions` that weren't there when the list
+ * was first generated at match-creation time (registering/approving a ground
+ * doesn't retroactively touch existing matches otherwise). If the option
+ * list is already full, the lowest-ranked Places results are evicted to make
+ * room, since registered facilities always take priority over Places ones.
+ * No-ops once a venue has already been confirmed for the match.
+ */
+export async function syncRegisteredVenues(db: Firestore, uid: string, matchId: string): Promise<void> {
+  const matchSnap = await db.doc(`matches/${matchId}`).get();
+  if (!matchSnap.exists) throw new Error("not-found:Match not found.");
+
+  const match = matchSnap.data() as {
+    players: string[];
+    sport: string;
+    midpoint: GeoPoint;
+    playerCoords?: Record<string, GeoPoint>;
+    selectedVenueId: string | null;
+  };
+  if (!match.players.includes(uid)) {
+    throw new Error("permission-denied:Only matched players can refresh venues.");
+  }
+  if (match.selectedVenueId) return;
+
+  const venuesRef = db.collection(`matches/${matchId}/venueOptions`);
+  const existingSnap = await venuesRef.get();
+  const existingIds = new Set(existingSnap.docs.map((d) => d.id));
+
+  const registered = await findRegisteredFacilities(db, match.midpoint, match.sport, MAX_VENUE_OPTIONS);
+  const missing = registered.filter((facility) => !existingIds.has(facility.id));
+  if (missing.length === 0) return;
+
+  const playerCoords = match.playerCoords ?? {};
+  const newDocs = missing.map((facility) => ({
+    id: facility.id,
+    data: {
+      placeId: null,
+      facilityId: facility.id,
+      name: facility.name,
+      address: facility.address,
+      location: facility.location,
+      photoRef: null,
+      photoUrl: facility.photoUrl,
+      rating: null,
+      distanceFromMidpointKm: facility.distanceFromMidpointKm,
+      distanceByPlayerKm: distanceByPlayerKm(facility.location, playerCoords),
+      votes: {},
+      voteCount: 0,
+      source: "registered" as const,
+    },
+  }));
+
+  const freeSlots = MAX_VENUE_OPTIONS - existingSnap.size;
+  const batch = db.batch();
+  let evictedCount = 0;
+
+  if (newDocs.length > freeSlots) {
+    const placesVenues = existingSnap.docs
+      .filter((d) => (d.data() as VenueOptionDoc).source === "places")
+      .map((d) => ({ ref: d.ref, distances: (d.data() as VenueOptionDoc).distanceByPlayerKm }))
+      .sort((a, b) => fairnessScore(b.distances) - fairnessScore(a.distances)); // worst-ranked first
+
+    evictedCount = Math.min(newDocs.length - freeSlots, placesVenues.length);
+    for (let i = 0; i < evictedCount; i++) batch.delete(placesVenues[i].ref);
+  }
+
+  const toInsert = newDocs.slice(0, freeSlots + evictedCount);
+  for (const { id, data } of toInsert) batch.set(venuesRef.doc(id), data);
   await batch.commit();
 }
 

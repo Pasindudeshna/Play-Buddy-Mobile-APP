@@ -5,6 +5,7 @@ import * as React from "react";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -80,122 +81,123 @@ export default function SignupPersonal() {
         style={styles.background}
       />
       <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.brand}>
+              <Text style={styles.brandB}>B</Text>
+              {"  "}PLAY BUDDY
+            </Text>
+          </View>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.brand}>
-            <Text style={styles.brandB}>B</Text>
-            {"  "}PLAY BUDDY
-          </Text>
-        </View>
+          {/* Title */}
+          <View style={styles.titleBlock}>
+            <Text style={styles.joinText}>
+              Join{" "}
+              <Text style={styles.joinBrand}>PLAY BUDDY</Text>
+            </Text>
+            <Text style={styles.subtitle}>Complete your profile to start finding buddies</Text>
+          </View>
 
-        {/* Title */}
-        <View style={styles.titleBlock}>
-          <Text style={styles.joinText}>
-            Join{" "}
-            <Text style={styles.joinBrand}>PLAY BUDDY</Text>
-          </Text>
-          <Text style={styles.subtitle}>Complete your profile to start finding buddies</Text>
-        </View>
+          {/* Step Indicator */}
+          <StepIndicator currentStep={1} />
 
-        {/* Step Indicator */}
-        <StepIndicator currentStep={1} />
+          {/* Form Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Personal Information</Text>
 
-        {/* Form Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Personal Information</Text>
+            {/* Age + Gender row */}
+            <View style={styles.rowFields}>
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Age</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="25"
+                  placeholderTextColor={Color.colorGray300}
+                  keyboardType="number-pad"
+                  value={age}
+                  onChangeText={setAge}
+                />
+              </View>
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Gender</Text>
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => setShowGenderPicker((v) => !v)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.inputText}>{gender}</Text>
+                </TouchableOpacity>
+                {showGenderPicker && (
+                  <View style={styles.pickerDropdown}>
+                    {GENDER_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt}
+                        style={styles.pickerOption}
+                        onPress={() => {
+                          setGender(opt);
+                          setShowGenderPicker(false);
+                        }}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          gender === opt && styles.pickerOptionTextActive,
+                        ]}>
+                          {opt}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
 
-          {/* Age + Gender row */}
-          <View style={styles.rowFields}>
-            <View style={[styles.fieldGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Age</Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>City / Area</Text>
               <TextInput
                 style={styles.input}
-                placeholder="25"
+                placeholder="eg. Colombo 7"
                 placeholderTextColor={Color.colorGray300}
-                keyboardType="number-pad"
-                value={age}
-                onChangeText={setAge}
+                value={city}
+                onChangeText={setCity}
               />
             </View>
-            <View style={[styles.fieldGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Gender</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setShowGenderPicker((v) => !v)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.inputText}>{gender}</Text>
-              </TouchableOpacity>
-              {showGenderPicker && (
-                <View style={styles.pickerDropdown}>
-                  {GENDER_OPTIONS.map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={styles.pickerOption}
-                      onPress={() => {
-                        setGender(opt);
-                        setShowGenderPicker(false);
-                      }}
-                    >
-                      <Text style={[
-                        styles.pickerOptionText,
-                        gender === opt && styles.pickerOptionTextActive,
-                      ]}>
-                        {opt}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Short Bio (Optional)</Text>
+              <TextInput
+                style={[styles.input, styles.bioInput]}
+                placeholder="Tell others about yourself..."
+                placeholderTextColor={Color.colorGray300}
+                multiline
+                numberOfLines={3}
+                value={bio}
+                onChangeText={setBio}
+              />
             </View>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>City / Area</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="eg. Colombo 7"
-              placeholderTextColor={Color.colorGray300}
-              value={city}
-              onChangeText={setCity}
-            />
+          {/* Bottom Nav */}
+          <View style={styles.bottomNav}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.backText}>{"< Back"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.continueBtn}
+              activeOpacity={0.85}
+              onPress={handleUpdatePersonal}
+            >
+              <Text style={styles.continueBtnText}>Continue  ›</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Short Bio (Optional)</Text>
-            <TextInput
-              style={[styles.input, styles.bioInput]}
-              placeholder="Tell others about yourself..."
-              placeholderTextColor={Color.colorGray300}
-              multiline
-              numberOfLines={3}
-              value={bio}
-              onChangeText={setBio}
-            />
-          </View>
-        </View>
-
-        {/* Spacer */}
-        <View style={{ flex: 1 }} />
-
-        {/* Bottom Nav */}
-        <View style={styles.bottomNav}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backText}>{"< Back"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.continueBtn}
-            activeOpacity={0.85}
-            onPress={handleUpdatePersonal}
-          >
-            <Text style={styles.continueBtnText}>Continue  ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Dots */}
-        <PageDots total={4} current={1} />
-
+          {/* Dots */}
+          <PageDots total={4} current={1} />
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -204,10 +206,10 @@ export default function SignupPersonal() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Color.colorBlack },
   background: { ...StyleSheet.absoluteFillObject },
-  safeArea: {
-    flex: 1,
+  safeArea: { flex: 1 },
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 8,
+    paddingBottom: 32,
   },
 
   header: { marginTop: 16, marginBottom: 8 },

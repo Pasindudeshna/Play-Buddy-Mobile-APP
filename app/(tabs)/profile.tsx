@@ -45,27 +45,6 @@ type UserProfile = {
   medicalConditions: string;
 };
 
-const RECENT_GAMES = [
-  {
-    id: "1",
-    opponent: "Sudesh Deshan",
-    date: "2026-03-25",
-    venue: "Sport Zone",
-    area: "Colombo 9",
-    sport: "🏸",
-    result: "won",
-  },
-  {
-    id: "2",
-    opponent: "Sudesh Deshan",
-    date: "2026-03-29",
-    venue: "Sport Zone",
-    area: "Colombo 9",
-    sport: "🎾",
-    result: "lost",
-  },
-];
-
 export default function ProfilePage() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -130,14 +109,6 @@ export default function ProfilePage() {
             <Text style={styles.brandB}>B</Text>
             {"  "}PLAY BUDDY
           </Text>
-          <View style={styles.topBarRight}>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Ionicons name="person-circle-outline" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Ionicons name="menu-outline" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
         </View>
 
         <ScrollView
@@ -264,7 +235,7 @@ export default function ProfilePage() {
           {/* ── Emergency Information Card ── */}
           <View style={styles.emergencyCard}>
             <View style={styles.emergencyHeader}>
-              <Ionicons name="heart" size={16} color={colors.danger} />
+              
               <Text style={styles.emergencyTitle}>Emergency Information</Text>
             </View>
 
@@ -290,52 +261,6 @@ export default function ProfilePage() {
               <Ionicons name="call" size={16} color={colors.accent} />
               <Text style={styles.emergencyLinkText}>View Emergency Contacts</Text>
             </TouchableOpacity>
-          </View>
-
-          {/* ── Recent Games ── */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Games</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAll}>View all  ›</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.gamesList}>
-            {RECENT_GAMES.map((game) => (
-              <View key={game.id} style={styles.gameCard}>
-                {/* Sport emoji */}
-                <View style={styles.gameSportBox}>
-                  <Text style={styles.gameSportEmoji}>{game.sport}</Text>
-                </View>
-
-                {/* Info */}
-                <View style={styles.gameInfo}>
-                  <Text style={styles.gameOpponent}>
-                    <Text style={styles.gameVs}>vs  </Text>
-                    {game.opponent}
-                  </Text>
-                  <View style={styles.gameMeta}>
-                    <Text style={styles.gameMetaText}>📅 {game.date}</Text>
-                    <Text style={styles.gameMetaText}>
-                      📍 {game.venue}{"\n"}   {game.area}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Result badge */}
-                <View style={styles.resultBadge}>
-                  <Text style={styles.resultIcon}>
-                    {game.result === "won" ? "🏠" : "❤️"}
-                  </Text>
-                  <Text style={[
-                    styles.resultText,
-                    game.result === "won" ? styles.resultTextWon : styles.resultTextLost,
-                  ]}>
-                    {game.result === "won" ? "won" : "Lost"}
-                  </Text>
-                </View>
-              </View>
-            ))}
           </View>
 
           <View style={{ height: 32 }} />
@@ -367,19 +292,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     letterSpacing: 1.5,
   },
   brandB: { color: colors.accent },
-  topBarRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceBorder,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
 
   /* ── Profile Card ── */
@@ -618,73 +530,4 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: FontSize.fs_13,
     fontWeight: "600",
   },
-
-  /* ── Section header ── */
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_16,
-    fontWeight: "700",
-  },
-  viewAll: {
-    color: colors.accent,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_12,
-  },
-
-  /* ── Games ── */
-  gamesList: { gap: 10 },
-  gameCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: Border.br_16,
-    padding: 14,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-  },
-  gameSportBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.surfaceBorder,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  gameSportEmoji: { fontSize: 20 },
-  gameInfo: { flex: 1, gap: 4 },
-  gameOpponent: {
-    color: colors.textPrimary,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_13,
-    fontWeight: "700",
-  },
-  gameVs: { color: colors.textSecondary, fontWeight: "400" },
-  gameMeta: { flexDirection: "row", gap: 12 },
-  gameMetaText: {
-    color: colors.textSecondary,
-    fontFamily: FontFamily.calSans,
-    fontSize: 10,
-    lineHeight: 15,
-  },
-  resultBadge: {
-    alignItems: "center",
-    gap: 2,
-    paddingHorizontal: 4,
-  },
-  resultIcon: { fontSize: 14 },
-  resultText: {
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_12,
-    fontWeight: "700",
-  },
-  resultTextWon: { color: colors.accent },
-  resultTextLost: { color: colors.danger },
 });

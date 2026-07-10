@@ -17,7 +17,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme, type ThemeColors } from "../contexts/ThemeContext";
 import { auth, db } from "../firebaseConfig";
 import {
-  createMatchBooking,
   isBookable,
   matchBookingId,
   subscribeToBooking,
@@ -67,8 +66,6 @@ export default function GroundConfirmation({ matchId }: { matchId: string }) {
   const [facility, setFacility] = useState<Facility | null>(null);
   const [opponentName, setOpponentName] = useState("your buddy");
   const [booking, setBooking] = useState<Booking | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -124,33 +121,6 @@ export default function GroundConfirmation({ matchId }: { matchId: string }) {
     : 0;
   const totalAmount = facility ? Math.round(facility.pricePerHour * durationHours * 100) / 100 : 0;
   const perPlayerAmount = Math.round((totalAmount / 2) * 100) / 100;
-
-  const handleConfirmBooking = async () => {
-    const user = auth.currentUser;
-    if (!user || !match || !facility) return;
-
-    setConfirming(true);
-    setError(null);
-    try {
-      const userSnap = await getDoc(doc(db, "users", user.uid));
-      const u = userSnap.exists() ? (userSnap.data() as any) : {};
-      await createMatchBooking({
-        facility,
-        matchId,
-        userId: user.uid,
-        userName: u.fullName ?? "Player",
-        userPhone: u.phone ?? "",
-        date: match.date,
-        startTime: formatTime(match.timeSlot.start),
-        endTime: formatTime(match.timeSlot.end),
-        durationHours,
-      });
-    } catch (e: any) {
-      setError(e?.message ?? "Couldn't confirm the booking.");
-    } finally {
-      setConfirming(false);
-    }
-  };
 
   const openInMaps = () => {
     if (!venue) return;
@@ -266,44 +236,39 @@ export default function GroundConfirmation({ matchId }: { matchId: string }) {
             </TouchableOpacity>
           </View>
 
-          {/* Booking confirmation */}
-          {facility ? (
-            booking ? (
-              <View style={styles.confirmedCard}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
-                <Text style={styles.confirmedTitle}>Booking Confirmed</Text>
-                <Text style={styles.confirmationCode}>{confirmationCode(matchId)}</Text>
-                <Text style={styles.hint}>
-                  Reserved under {booking.userName}
-                  {booking.userId === myUid ? " (you)" : ""}. Show this code at the venue.
-                </Text>
-              </View>
+          {/* Reference number, with a Payment button underneath it whenever there's an unpaid bookable ground */}
+          <View style={styles.confirmedCard}>
+            <Ionicons
+              name={booking ? "checkmark-circle" : "information-circle"}
+              size={22}
+              color={colors.accent}
+            />
+            <Text style={styles.confirmedTitle}>
+              {booking ? "Booking Confirmed" : "Meetup Reference"}
+            </Text>
+            <Text style={styles.confirmationCode}>{confirmationCode(matchId)}</Text>
+
+            {booking ? (
+              <Text style={styles.hint}>
+                Reserved under {booking.userName}
+                {booking.userId === myUid ? " (you)" : ""}. Show this code at the venue.
+              </Text>
             ) : (
-              <View style={styles.card}>
-                {error && <Text style={styles.errorText}>{error}</Text>}
-                <TouchableOpacity
-                  style={[styles.confirmBtn, confirming && styles.confirmBtnDisabled]}
-                  onPress={handleConfirmBooking}
-                  disabled={confirming}
-                >
-                  {confirming ? (
-                    <ActivityIndicator size="small" color={colors.accentText} />
-                  ) : (
-                    <Text style={styles.confirmBtnText}>Confirm & Book This Ground</Text>
-                  )}
-                </TouchableOpacity>
-                <Text style={styles.hint}>
-                  Either you or {opponentName} can confirm — it only needs to happen once.
-                </Text>
-              </View>
-            )
-          ) : (
-            <View style={styles.confirmedCard}>
-              <Ionicons name="information-circle" size={22} color={colors.accent} />
-              <Text style={styles.confirmedTitle}>Meetup Reference</Text>
-              <Text style={styles.confirmationCode}>{confirmationCode(matchId)}</Text>
-            </View>
-          )}
+              facility && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.confirmBtn, styles.paymentBtn]}
+                    onPress={() => router.push({ pathname: "/payment", params: { matchId } })}
+                  >
+                    <Text style={styles.confirmBtnText}>Go to Payment</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.hint}>
+                    Either you or {opponentName} can pay — it only needs to happen once.
+                  </Text>
+                </>
+              )
+            )}
+          </View>
 
           <View style={{ height: 32 }} />
         </ScrollView>
@@ -430,6 +395,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: "center",
   },
   confirmBtnDisabled: { opacity: 0.6 },
+  paymentBtn: {
+    alignSelf: "stretch",
+    paddingHorizontal: 32,
+    marginTop: 6,
+  },
   confirmBtnText: {
     color: colors.accentText,
     fontFamily: FontFamily.calSans,

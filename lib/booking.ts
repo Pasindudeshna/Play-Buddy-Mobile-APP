@@ -197,58 +197,6 @@ export function matchBookingId(matchId: string): string {
   return `match_${matchId}`;
 }
 
-/**
- * Reserves the ground both players agreed on during matchmaking, for the
- * exact date/time they were matched on (not the facility's slot grid — the
- * two players already agreed on a time, so this doesn't re-check it against
- * generateSlotStartTimes()). Whichever player taps "confirm" first becomes
- * the named booker; the deterministic doc id keeps this to one booking per
- * match even if both players tap it.
- */
-export async function createMatchBooking(input: {
-  facility: Facility;
-  matchId: string;
-  userId: string;
-  userName: string;
-  userPhone: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  durationHours: number;
-}): Promise<void> {
-  const { facility } = input;
-  const totalAmount = Math.round(facility.pricePerHour * input.durationHours * 100) / 100;
-  const ref = doc(db, "bookings", matchBookingId(input.matchId));
-
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (snap.exists() && (snap.data() as Booking).status !== "cancelled") {
-      return; // Already booked by the other player — nothing to do.
-    }
-    tx.set(ref, {
-      facilityId: facility.id,
-      facilityName: facility.name,
-      ownerId: facility.ownerId,
-      userId: input.userId,
-      userName: input.userName,
-      userPhone: input.userPhone,
-      date: input.date,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      dateTimeKey: `${input.date}T${input.startTime}`,
-      durationHours: input.durationHours,
-      pricePerHour: facility.pricePerHour,
-      currency: facility.currency,
-      totalAmount,
-      status: "confirmed",
-      paymentStatus: "unpaid",
-      matchId: input.matchId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-  });
-}
-
 /** Live view of a single booking by id (used to watch a match's ground booking from either player's screen). */
 export function subscribeToBooking(
   bookingId: string,

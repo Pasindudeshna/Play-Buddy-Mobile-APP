@@ -43,18 +43,16 @@ const SPORTS = [
   { id: "table_tennis", label: "Table Tennis", emoji: "🏓" },
 ];
 
-const TIME_SLOTS = [
-  ["06:00", "07:00", "08:00", "09:00", "10:00"],
-  ["11:00", "07:00", "08:00", "09:00", "10:00"],
-  ["06:00", "07:00", "08:00", "09:00", "10:00"],
-];
-
 const PLAYER_OPTIONS = ["01", "02", "03", "04"];
 
 type Region = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 const DEFAULT_REGION: Region = {
@@ -69,7 +67,10 @@ export default function FindBuddy() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [endTime, setEndTime] = useState<Date | null>(null);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [selectedPlayers, setSelectedPlayers] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -84,12 +85,29 @@ export default function FindBuddy() {
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [choosingTicketId, setChoosingTicketId] = useState<string | null>(null);
+  const [showSlowSearchHint, setShowSlowSearchHint] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  // Matching requires two players' time windows to overlap, so a mismatched
+  // range can search for a long time (up to the ticket's 30-min TTL) with no
+  // feedback. Surface a hint after a short wait instead of leaving the user
+  // staring at a spinner with no idea why nothing's happening.
+  useEffect(() => {
+    if (!searching) {
+      setShowSlowSearchHint(false);
+      return;
+    }
+    const t = setTimeout(() => setShowSlowSearchHint(true), 20000);
+    return () => clearTimeout(t);
+  }, [searching]);
 
   const getValidationMessage = (): string | null => {
     if (!selectedSport) return "Please select a sport.";
     if (!selectedDate) return "Please select a date.";
-    if (!selectedTime) return "Please select a time slot.";
+    if (!startTime || !endTime) return "Please select a time range.";
+    if (endTime.getHours() * 60 + endTime.getMinutes() <= startTime.getHours() * 60 + startTime.getMinutes()) {
+      return "End time must be after start time.";
+    }
     if (!selectedPlayers) return "Please select how many buddies you need.";
     return null;
   };
@@ -100,12 +118,6 @@ export default function FindBuddy() {
       unsubscribeRef.current?.();
     };
   }, []);
-
-  const getSelectedTimeLabel = () => {
-    if (!selectedTime) return null;
-    const [ri, si] = selectedTime.split("-").map(Number);
-    return TIME_SLOTS[ri]?.[si] ?? null;
-  };
 
   const handleOpenMapPicker = async () => {
     const start = pickedCoords ?? (await getCurrentCoords().catch(() => null));
@@ -150,9 +162,8 @@ export default function FindBuddy() {
   };
 
   const handleFindBuddy = async () => {
-    const timeLabel = getSelectedTimeLabel();
     const user = auth.currentUser;
-    if (!canSearch || !timeLabel || !selectedDate || !user) return;
+    if (!canSearch || !startTime || !endTime || !selectedDate || !user) return;
 
     setSearchError(null);
     setSearching(true);
@@ -166,7 +177,7 @@ export default function FindBuddy() {
         return;
       }
 
-      const timeSlot = buildTimeSlot(selectedDate, timeLabel);
+      const timeSlot = buildTimeSlot(selectedDate, startTime, endTime);
       const newTicketId = await createQueueTicket({
         userId: user.uid,
         sport: selectedSport!,
@@ -247,6 +258,12 @@ export default function FindBuddy() {
           <Text style={styles.searchingSubtitle}>
             Looking within {radius}km of your selected location. This can take a moment.
           </Text>
+          {showSlowSearchHint && (
+            <Text style={styles.searchingHint}>
+              Still nothing? A match needs another player whose time range overlaps yours.
+              Try widening your From/To times or picking a more common time of day.
+            </Text>
+          )}
           <TouchableOpacity style={styles.cancelSearchBtn} onPress={handleCancelSearch}>
             <Text style={styles.cancelSearchBtnText}>Cancel Search</Text>
           </TouchableOpacity>
@@ -356,28 +373,72 @@ export default function FindBuddy() {
               </TouchableOpacity>
             )}
 
-            <View style={styles.timeSlotsWrapper}>
-              {TIME_SLOTS.map((row, ri) => (
-                <View key={ri} style={styles.timeRow}>
-                  {row.map((slot, si) => {
-                    const key = `${ri}-${si}`;
-                    const isActive = selectedTime === key;
-                    return (
-                      <TouchableOpacity
-                        key={si}
-                        style={[styles.timeChip, isActive && styles.timeChipActive]}
-                        onPress={() => setSelectedTime(key)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.timeChipText, isActive && styles.timeChipTextActive]}>
-                          {slot}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
+            <View style={styles.timeRangeRow}>
+              <View style={styles.timeRangeField}>
+                <Text style={styles.dateLabel}>From</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  activeOpacity={0.85}
+                  onPress={() => setShowStartTimePicker(true)}
+                >
+                  <Text style={startTime ? styles.dateInputText : styles.dateInputPlaceholder}>
+                    {startTime ? formatTime(startTime) : "Start time"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.timeRangeField}>
+                <Text style={styles.dateLabel}>To</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  activeOpacity={0.85}
+                  onPress={() => setShowEndTimePicker(true)}
+                >
+                  <Text style={endTime ? styles.dateInputText : styles.dateInputPlaceholder}>
+                    {endTime ? formatTime(endTime) : "End time"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
+
+            {showStartTimePicker && (
+              <DateTimePicker
+                value={startTime ?? new Date(2000, 0, 1, 9, 0)}
+                mode="time"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, date) => {
+                  if (Platform.OS !== "ios") setShowStartTimePicker(false);
+                  if (event.type !== "dismissed" && date) setStartTime(date);
+                }}
+              />
+            )}
+            {showStartTimePicker && Platform.OS === "ios" && (
+              <TouchableOpacity
+                style={styles.dateDoneBtn}
+                onPress={() => setShowStartTimePicker(false)}
+              >
+                <Text style={styles.dateDoneBtnText}>Done</Text>
+              </TouchableOpacity>
+            )}
+
+            {showEndTimePicker && (
+              <DateTimePicker
+                value={endTime ?? new Date(2000, 0, 1, 10, 0)}
+                mode="time"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, date) => {
+                  if (Platform.OS !== "ios") setShowEndTimePicker(false);
+                  if (event.type !== "dismissed" && date) setEndTime(date);
+                }}
+              />
+            )}
+            {showEndTimePicker && Platform.OS === "ios" && (
+              <TouchableOpacity
+                style={styles.dateDoneBtn}
+                onPress={() => setShowEndTimePicker(false)}
+              >
+                <Text style={styles.dateDoneBtnText}>Done</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── Players ── */}
@@ -650,28 +711,9 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: "700",
   },
 
-  /* Time slots */
-  timeSlotsWrapper: { gap: 8 },
-  timeRow: { flexDirection: "row", gap: 8 },
-  timeChip: {
-    flex: 1,
-    backgroundColor: colors.inputBg,
-    borderRadius: Border.br_10,
-    paddingVertical: 9,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  timeChipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
-  },
-  timeChipText: {
-    color: colors.textSecondary,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_11,
-  },
-  timeChipTextActive: { color: colors.accent },
+  /* Time range */
+  timeRangeRow: { flexDirection: "row", gap: 10 },
+  timeRangeField: { flex: 1, gap: 6 },
 
   /* Players */
   playersRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: -4 },
@@ -856,6 +898,14 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     textAlign: "center",
+  },
+  searchingHint: {
+    color: colors.accent,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_11,
+    textAlign: "center",
+    marginTop: -4,
+    paddingHorizontal: 8,
   },
   cancelSearchBtn: {
     marginTop: 12,
