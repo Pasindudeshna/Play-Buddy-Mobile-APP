@@ -6,18 +6,19 @@ import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { WebView, type WebViewNavigation } from "react-native-webview";
 import { useTheme, type ThemeColors } from "../contexts/ThemeContext";
 import { auth, db } from "../firebaseConfig";
-import { callMatchApi, MATCH_API_URL } from "../lib/matchApi";
+import { callMatchApi } from "../lib/matchApi";
 import {
   isBookable,
   matchBookingId,
@@ -38,31 +39,21 @@ type VenueOptionDoc = {
   facilityId: string | null;
 };
 
-type CheckoutFields = Record<string, string>;
-
-const RETURN_URL_PREFIX = `${MATCH_API_URL}/api/payhere-return`;
-const CANCEL_URL_PREFIX = `${MATCH_API_URL}/api/payhere-cancel`;
+type CardType = "credit" | "debit";
 
 function formatTime(ts: Timestamp): string {
   return ts.toDate().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-function escapeHtmlAttr(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+function formatCardNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 16);
+  return digits.replace(/(.{4})/g, "$1 ").trim();
 }
 
-/** An HTML page that auto-submits a hidden form to PayHere's checkout endpoint — this IS the payment form, hosted by PayHere, not us. */
-function buildCheckoutHtml(checkoutUrl: string, fields: CheckoutFields): string {
-  const inputs = Object.entries(fields)
-    .map(([name, value]) => `<input type="hidden" name="${escapeHtmlAttr(name)}" value="${escapeHtmlAttr(value)}" />`)
-    .join("");
-  return `<!DOCTYPE html><html><body onload="document.forms[0].submit()">
-    <form method="post" action="${escapeHtmlAttr(checkoutUrl)}">${inputs}</form>
-  </body></html>`;
+function formatExpiry(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
 }
 
 export default function Payment({ matchId }: { matchId: string }) {
@@ -75,9 +66,11 @@ export default function Payment({ matchId }: { matchId: string }) {
   const [facility, setFacility] = useState<Facility | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
 
-  const [preparing, setPreparing] = useState(false);
-  const [checkoutHtml, setCheckoutHtml] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [cardType, setCardType] = useState<CardType>("credit");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvc, setCvc] = useState("");
+  const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -136,37 +129,36 @@ export default function Payment({ matchId }: { matchId: string }) {
   const totalAmount = facility ? Math.round(facility.pricePerHour * durationHours * 100) / 100 : 0;
   const perPlayerAmount = Math.round((totalAmount / playerCount) * 100) / 100;
 
-  const handlePay = async () => {
-    if (!match || !facility) return;
-    setError(null);
-    setPreparing(true);
-    try {
-      const { checkoutUrl, fields } = await callMatchApi("/api/create-payhere-checkout", { matchId });
-      setCheckoutHtml(buildCheckoutHtml(checkoutUrl, fields));
-    } catch (e: any) {
-      setError(e?.message ?? "Couldn't start checkout. Please try again.");
-    } finally {
-      setPreparing(false);
+  const validateCard = (): string | null => {
+    const digits = cardNumber.replace(/\D/g, "");
+    if (digits.length < 13) return "Enter a valid card number.";
+    const expiryMatch = expiry.match(/^(\d{2})\/(\d{2})$/);
+    if (!expiryMatch || Number(expiryMatch[1]) < 1 || Number(expiryMatch[1]) > 12) {
+      return "Enter a valid expiration date (MM/YY).";
     }
+    if (cvc.length < 3) return "Enter a valid CVC/CVV.";
+    return null;
   };
 
-  // Intercepts PayHere's redirect back to our return/cancel pages before the
-  // WebView actually loads them — payment confirmation itself always comes
-  // from the payhere-notify webhook (see netlify/functions/payhere-notify.mts)
-  // updating the booking doc, which the subscribeToBooking effect above picks
-  // up; this only closes the checkout sheet and shows the right interim state.
-  const handleNavigationRequest = (request: WebViewNavigation): boolean => {
-    if (request.url.startsWith(RETURN_URL_PREFIX)) {
-      setCheckoutHtml(null);
-      setConfirming(true);
-      return false;
+  const handlePay = async () => {
+    if (!match || !facility) return;
+
+    const validationError = validateCard();
+    if (validationError) {
+      setError(validationError);
+      return;
     }
-    if (request.url.startsWith(CANCEL_URL_PREFIX)) {
-      setCheckoutHtml(null);
-      setError("Payment was cancelled.");
-      return false;
+
+    setPaying(true);
+    setError(null);
+    try {
+      await callMatchApi("/api/pay-booking", { matchId });
+      router.replace({ pathname: "/ground-confirmation", params: { matchId } });
+    } catch (e: any) {
+      setError(e?.message ?? "Payment failed. Please try again.");
+    } finally {
+      setPaying(false);
     }
-    return true;
   };
 
   if (loading) {
@@ -229,134 +221,175 @@ export default function Payment({ matchId }: { matchId: string }) {
           <View style={{ width: 36 }} />
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          {/* Heading */}
-          <View style={styles.pageHeading}>
-            <View style={styles.brandRow}>
-              <Text style={styles.brand}>
-                <Text style={styles.brandB}>B</Text>{"  "}PLAY BUDDY
-              </Text>
-            </View>
-            <Text style={styles.pageTitle}>Payment</Text>
-            <Text style={styles.pageSubtitle}>Secure checkout via PayHere</Text>
-          </View>
-
-          {/* Booking summary */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Booking Summary</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.meta}>Date</Text>
-              <Text style={styles.metaStrong}>{match.date}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.meta}>Time</Text>
-              <Text style={styles.metaStrong}>{formatTime(match.timeSlot.start)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.meta}>Players</Text>
-              <Text style={styles.metaStrong}>{playerCount}</Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.meta}>Ground Charge</Text>
-              <Text style={styles.metaStrong}>
-                {facility.currency} {totalAmount}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.metaBold}>Total</Text>
-              <Text style={styles.metaAccent}>
-                {facility.currency} {totalAmount}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.meta}>Per person ({playerCount} players)</Text>
-              <Text style={styles.metaAccent}>
-                {facility.currency} {perPlayerAmount}
-              </Text>
-            </View>
-          </View>
-
-          {/* Payment method */}
-          <Text style={styles.sectionLabel}>Payment Method</Text>
-          <View style={styles.methodPill}>
-            <Ionicons name="card-outline" size={18} color={colors.accent} />
-            <Text style={styles.methodPillText}>Credit / Debit Card — via PayHere</Text>
-            <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
-          </View>
-          <Text style={styles.methodHint}>
-            You'll enter your card details on PayHere's secure checkout page. Play Buddy never
-            sees or stores your card number.
-          </Text>
-
-          {/* Refund policy */}
-          <View style={styles.refundBox}>
-            <Text style={styles.refundTitle}>Refund Policy</Text>
-            <Text style={styles.refundText}>
-              Refunds are subject to the venue's cancellation policy. Cancel before the game
-              begins for a full refund, otherwise a cancellation fee may apply.
-            </Text>
-          </View>
-
-          {confirming && (
-            <View style={styles.confirmingBox}>
-              <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={styles.confirmingText}>Confirming your payment…</Text>
-            </View>
-          )}
-
-          {error && <Text style={styles.errorText}>{error}</Text>}
-
-          <TouchableOpacity
-            style={[styles.payBtn, (preparing || confirming) && styles.payBtnDisabled]}
-            activeOpacity={0.85}
-            disabled={preparing || confirming}
-            onPress={handlePay}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
           >
-            {preparing ? (
-              <ActivityIndicator size="small" color={colors.accentText} />
-            ) : (
-              <Text style={styles.payBtnText}>
-                Pay {facility.currency} {perPlayerAmount}
-              </Text>
-            )}
-          </TouchableOpacity>
+            {/* Heading */}
+            <View style={styles.pageHeading}>
+              <View style={styles.brandRow}>
+                <Text style={styles.brand}>
+                  <Text style={styles.brandB}>B</Text>{"  "}PLAY BUDDY
+                </Text>
+              </View>
+              <Text style={styles.pageTitle}>Payment</Text>
+              <Text style={styles.pageSubtitle}>Secure checkout</Text>
+            </View>
 
-          <View style={{ height: 32 }} />
-        </ScrollView>
-      </SafeAreaView>
+            {/* Booking summary */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Booking Summary</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.meta}>Date</Text>
+                <Text style={styles.metaStrong}>{match.date}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.meta}>Time</Text>
+                <Text style={styles.metaStrong}>{formatTime(match.timeSlot.start)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.meta}>Players</Text>
+                <Text style={styles.metaStrong}>{playerCount}</Text>
+              </View>
 
-      <Modal visible={!!checkoutHtml} animationType="slide" onRequestClose={() => setCheckoutHtml(null)}>
-        <SafeAreaView style={styles.checkoutContainer}>
-          <View style={styles.checkoutTopBar}>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => setCheckoutHtml(null)}>
-              <Ionicons name="close" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.title}>PayHere Checkout</Text>
-            <View style={{ width: 36 }} />
-          </View>
-          {checkoutHtml && (
-            <WebView
-              source={{ html: checkoutHtml, baseUrl: MATCH_API_URL }}
-              onShouldStartLoadWithRequest={handleNavigationRequest}
-              startInLoadingState
-              renderLoading={() => (
-                <View style={styles.centered}>
-                  <ActivityIndicator color={colors.accent} size="large" />
+              <View style={styles.divider} />
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.meta}>Ground Charge</Text>
+                <Text style={styles.metaStrong}>
+                  {facility.currency} {totalAmount}
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.metaBold}>Total</Text>
+                <Text style={styles.metaAccent}>
+                  {facility.currency} {totalAmount}
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.meta}>Per person ({playerCount} players)</Text>
+                <Text style={styles.metaAccent}>
+                  {facility.currency} {perPlayerAmount}
+                </Text>
+              </View>
+            </View>
+
+            {/* Payment method */}
+            <Text style={styles.sectionLabel}>Payment Method</Text>
+            <View style={styles.methodPill}>
+              <Ionicons name="card-outline" size={18} color={colors.accent} />
+              <Text style={styles.methodPillText}>Credit / Debit Card</Text>
+              <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.typeToggle}>
+                <TouchableOpacity
+                  style={[styles.typeBtn, cardType === "credit" && styles.typeBtnActive]}
+                  onPress={() => setCardType("credit")}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.typeBtnText, cardType === "credit" && styles.typeBtnTextActive]}>
+                    Credit
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeBtn, cardType === "debit" && styles.typeBtnActive]}
+                  onPress={() => setCardType("debit")}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.typeBtnText, cardType === "debit" && styles.typeBtnTextActive]}>
+                    Debit
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Card Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="1234 5678 9012 3456"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="number-pad"
+                  value={cardNumber}
+                  onChangeText={(t) => setCardNumber(formatCardNumber(t))}
+                  maxLength={19}
+                />
+              </View>
+
+              <View style={styles.rowFields}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.label}>Expiration Date</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="MM/YY"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="number-pad"
+                      value={expiry}
+                      onChangeText={(t) => setExpiry(formatExpiry(t))}
+                      maxLength={5}
+                    />
+                  </View>
                 </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.label}>CVC/CVV</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="123"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="number-pad"
+                      secureTextEntry
+                      value={cvc}
+                      onChangeText={(t) => setCvc(t.replace(/\D/g, "").slice(0, 4))}
+                      maxLength={4}
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Refund policy */}
+            <View style={styles.refundBox}>
+              <Text style={styles.refundTitle}>Refund Policy</Text>
+              <Text style={styles.refundText}>
+                Refunds are subject to the venue's cancellation policy. Cancel before the game
+                begins for a full refund, otherwise a cancellation fee may apply.
+              </Text>
+            </View>
+
+            {error && <Text style={styles.errorText}>{error}</Text>}
+
+            <TouchableOpacity
+              style={[styles.payBtn, paying && styles.payBtnDisabled]}
+              activeOpacity={0.85}
+              disabled={paying}
+              onPress={handlePay}
+            >
+              {paying ? (
+                <ActivityIndicator size="small" color={colors.accentText} />
+              ) : (
+                <Text style={styles.payBtnText}>
+                  Pay {facility.currency} {perPlayerAmount}
+                </Text>
               )}
-            />
-          )}
-        </SafeAreaView>
-      </Modal>
+            </TouchableOpacity>
+
+            <View style={{ height: 32 }} />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </View>
   );
 }
+
+const WARNING = "#d4a017";
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background[0] },
@@ -475,7 +508,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.accent,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    marginBottom: 8,
+    marginBottom: 14,
   },
   methodPillText: {
     flex: 1,
@@ -484,12 +517,44 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: FontSize.fs_13,
     fontWeight: "700",
   },
-  methodHint: {
+
+  typeToggle: {
+    flexDirection: "row",
+    backgroundColor: colors.inputBg,
+    borderRadius: Border.br_20,
+    padding: 4,
+    marginBottom: 4,
+  },
+  typeBtn: {
+    flex: 1,
+    borderRadius: Border.br_16,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  typeBtnActive: { backgroundColor: colors.accent },
+  typeBtnText: {
     color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_11,
-    lineHeight: 16,
-    marginBottom: 16,
+    fontSize: FontSize.fs_12,
+    fontWeight: "600",
+  },
+  typeBtnTextActive: { color: colors.accentText },
+
+  rowFields: { flexDirection: "row", gap: 12 },
+  fieldGroup: { gap: 6, marginTop: 6 },
+  label: {
+    color: colors.textPrimary,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_12,
+  },
+  input: {
+    backgroundColor: colors.inputBg,
+    borderRadius: Border.br_20,
+    height: 46,
+    paddingHorizontal: Padding.padding_16,
+    color: colors.textPrimary,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_13,
   },
 
   refundBox: {
@@ -502,7 +567,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: 16,
   },
   refundTitle: {
-    color: "#d4a017",
+    color: WARNING,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_12,
     fontWeight: "700",
@@ -512,19 +577,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_11,
     lineHeight: 16,
-  },
-
-  confirmingBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    marginBottom: 14,
-  },
-  confirmingText: {
-    color: colors.textSecondary,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_12,
   },
 
   errorText: {
@@ -548,15 +600,5 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_15,
     fontWeight: "700",
-  },
-
-  checkoutContainer: { flex: 1, backgroundColor: colors.background[0] },
-  checkoutTopBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
   },
 });
