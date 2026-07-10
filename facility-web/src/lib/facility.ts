@@ -22,4 +22,15 @@ export type Facility = {
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
   approvedAt: Timestamp | null;
+  /** Standard hourly charge for booking this ground. */
+  pricePerHour: number;
+  currency: string;
+  /** Daily booking window, "HH:MM" 24h. Slots are generated between these. */
+  openingTime: string;
+  closingTime: string;
+  /** Booking slot granularity in minutes (e.g. 30, 60, 90, 120). */
+  slotDurationMinutes: number;
 };
+
+export const DEFAULT_SLOT_DURATION_MINUTES = 60;
+export const DEFAULT_CURRENCY = "LKR";

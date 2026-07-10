@@ -53,6 +53,12 @@ module.exports = {
             "Play Buddy uses your location to find nearby sport buddies and venues.",
         },
       ],
+      [
+        "expo-contacts",
+        {
+          contactsPermission: "Play Buddy uses your contacts to help you invite friends to play.",
+        },
+      ],
       "@react-native-community/datetimepicker",
     ],
     experiments: {

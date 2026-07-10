@@ -14,7 +14,13 @@ import { useAuth } from "../context/AuthContext";
 import { SPORTS, type SportId } from "../lib/sports";
 import { geohashFor } from "../lib/geo";
 import { uploadImageToCloudinary } from "../lib/cloudinary";
-import type { Facility } from "../lib/facility";
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_SLOT_DURATION_MINUTES,
+  type Facility,
+} from "../lib/facility";
+
+const SLOT_DURATION_OPTIONS = [30, 60, 90, 120];
 
 export default function FacilityFormPage() {
   const { user } = useAuth();
@@ -30,6 +36,11 @@ export default function FacilityFormPage() {
   const [longitude, setLongitude] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [pricePerHour, setPricePerHour] = useState("");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
+  const [openingTime, setOpeningTime] = useState("06:00");
+  const [closingTime, setClosingTime] = useState("22:00");
+  const [slotDurationMinutes, setSlotDurationMinutes] = useState(DEFAULT_SLOT_DURATION_MINUTES);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [status, setStatus] = useState<Facility["status"] | null>(null);
@@ -54,6 +65,11 @@ export default function FacilityFormPage() {
       setLongitude(String(f.location.longitude));
       setContactPhone(f.contactPhone);
       setContactEmail(f.contactEmail);
+      setPricePerHour(f.pricePerHour != null ? String(f.pricePerHour) : "");
+      setCurrency(f.currency ?? DEFAULT_CURRENCY);
+      setOpeningTime(f.openingTime ?? "06:00");
+      setClosingTime(f.closingTime ?? "22:00");
+      setSlotDurationMinutes(f.slotDurationMinutes ?? DEFAULT_SLOT_DURATION_MINUTES);
       setPhotoUrls(f.photoUrls ?? []);
       setStatus(f.status);
       setLoading(false);
@@ -116,6 +132,15 @@ export default function FacilityFormPage() {
       setError("Latitude/longitude must be valid numbers.");
       return;
     }
+    const price = Number(pricePerHour);
+    if (!Number.isFinite(price) || price <= 0) {
+      setError("Enter a valid hourly price.");
+      return;
+    }
+    if (openingTime >= closingTime) {
+      setError("Closing time must be after opening time.");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -129,6 +154,11 @@ export default function FacilityFormPage() {
         geohash,
         contactPhone: contactPhone.trim(),
         contactEmail: contactEmail.trim(),
+        pricePerHour: price,
+        currency,
+        openingTime,
+        closingTime,
+        slotDurationMinutes,
         photoUrls,
         updatedAt: serverTimestamp(),
       };
@@ -229,6 +259,51 @@ export default function FacilityFormPage() {
             <button type="button" className="btn btn-outline btn-sm" onClick={useMyLocation}>
               Use my current location
             </button>
+          </div>
+          <div className="field">
+            <label>Standard charge</label>
+            <div className="field-row">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Price per hour"
+                value={pricePerHour}
+                onChange={(e) => setPricePerHour(e.target.value)}
+                required
+              />
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                <option value="LKR">LKR</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <label>Booking hours</label>
+            <div className="field-row">
+              <input
+                type="time"
+                value={openingTime}
+                onChange={(e) => setOpeningTime(e.target.value)}
+                required
+              />
+              <input
+                type="time"
+                value={closingTime}
+                onChange={(e) => setClosingTime(e.target.value)}
+                required
+              />
+              <select
+                value={slotDurationMinutes}
+                onChange={(e) => setSlotDurationMinutes(Number(e.target.value))}
+              >
+                {SLOT_DURATION_OPTIONS.map((mins) => (
+                  <option key={mins} value={mins}>
+                    {mins} min slots
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="field">
             <label>Photos</label>

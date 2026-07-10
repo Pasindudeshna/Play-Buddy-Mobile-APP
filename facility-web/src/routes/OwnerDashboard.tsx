@@ -76,9 +76,15 @@ export default function OwnerDashboard() {
             )}
             <div className="divider" />
             <div className="row" style={{ justifyContent: "flex-start", gap: 10 }}>
-              <Link className="btn btn-outline btn-sm" to={`/dashboard/edit/${f.id}`}>
-                Edit
-              </Link>
+              {f.status === "approved" ? (
+                <Link className="btn btn-sm" to={`/dashboard/manage/${f.id}`}>
+                  Manage slots & bookings
+                </Link>
+              ) : (
+                <Link className="btn btn-outline btn-sm" to={`/dashboard/edit/${f.id}`}>
+                  Edit
+                </Link>
+              )}
               <a
                 className="btn btn-outline btn-sm"
                 href={`https://www.google.com/maps/search/?api=1&query=${f.location.latitude},${f.location.longitude}`}

@@ -313,14 +313,7 @@ export default function MatchFound({ matchId, onBack }: MatchFoundProps) {
           <Text style={styles.brand}>
             <Text style={styles.brandB}>B</Text>{"  "}PLAY BUDDY
           </Text>
-          <View style={styles.topBarRight}>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Text style={styles.topBarIcon}>👤</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Text style={styles.topBarIcon}>☰</Text>
-            </TouchableOpacity>
-          </View>
+          <View style={{ width: 60 }} />
         </View>
 
         <ScrollView
@@ -457,13 +450,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   brandB: { color: Color.colorMediumspringgreen },
-  topBarRight: { flexDirection: "row", gap: 10 },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.07)",
-    justifyContent: "center", alignItems: "center",
-  },
-  topBarIcon: { fontSize: 18 },
 
   scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
 

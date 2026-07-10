@@ -229,6 +229,38 @@ export default function ProfilePage() {
             />
           </View>
 
+          {/* ── Your Activity ── */}
+          <View style={styles.activityCard}>
+            <Text style={styles.activityTitle}>Your Activity</Text>
+
+            <TouchableOpacity style={styles.activityRow} onPress={() => router.push("/my-bookings")}>
+              <View style={styles.activityIconBox}>
+                <Ionicons name="calendar-outline" size={18} color={colors.accent} />
+              </View>
+              <Text style={styles.activityLabel}>Bookings</Text>
+              <Text style={styles.activitySub}>Existing & upcoming</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.activityRow} onPress={() => router.push("/match-history")}>
+              <View style={styles.activityIconBox}>
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.accent} />
+              </View>
+              <Text style={styles.activityLabel}>Match History</Text>
+              <Text style={styles.activitySub}>Past matches & chats</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.activityRow} onPress={() => router.push("/invite-friends")}>
+              <View style={styles.activityIconBox}>
+                <Ionicons name="person-add-outline" size={18} color={colors.accent} />
+              </View>
+              <Text style={styles.activityLabel}>Invite Friends</Text>
+              <Text style={styles.activitySub}>From your contacts</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
           {/* ── Emergency Information Card ── */}
           <View style={styles.emergencyCard}>
             <View style={styles.emergencyHeader}>
@@ -486,6 +518,53 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_13,
     fontWeight: "600",
+  },
+
+  /* ── Your Activity ── */
+  activityCard: {
+    backgroundColor: colors.surface,
+    borderRadius: Border.br_16,
+    padding: Padding.padding_16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    gap: 4,
+  },
+  activityTitle: {
+    color: colors.textPrimary,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_13,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  activityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  activityIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.accentSoft,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activityLabel: {
+    color: colors.textPrimary,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_12,
+    fontWeight: "600",
+  },
+  activitySub: {
+    flex: 1,
+    textAlign: "right",
+    color: colors.textSecondary,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_10,
   },
 
   /* ── Emergency Card ── */

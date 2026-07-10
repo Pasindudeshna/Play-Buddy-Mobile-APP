@@ -82,6 +82,11 @@ service cloud.firestore {
       // edit their own doc while it's pending/rejected, cannot change
       // ownerId, and can only ever move status back to 'pending'
       // (resubmit-after-rejection flow) — never to 'approved'.
+      //
+      // Exception: pricing/hours (used for ground booking + slot
+      // allocation) are not moderation-worthy content, so an owner may
+      // update *only* those fields on an already-approved listing without
+      // re-triggering admin review.
       allow update: if isAdmin()
         || (
           isSignedIn()
@@ -89,6 +94,14 @@ service cloud.firestore {
           && request.resource.data.ownerId == resource.data.ownerId
           && resource.data.status in ['pending', 'rejected']
           && request.resource.data.status == 'pending'
+        )
+        || (
+          isSignedIn()
+          && resource.data.ownerId == request.auth.uid
+          && resource.data.status == 'approved'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ['pricePerHour', 'currency', 'openingTime', 'closingTime', 'slotDurationMinutes', 'updatedAt']
+          )
         );
 
       // Owner can withdraw their own listing unless it's currently live
@@ -98,8 +111,59 @@ service cloud.firestore {
             && resource.data.status != 'approved');
     }
 
+    function isFacilityOwner(facilityId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid;
+    }
+
+    match /bookings/{bookingId} {
+      // Visible to the player who booked it, the ground's owner, an admin,
+      // or — for a booking created from a Find Buddy match's venue
+      // confirmation (matchId set) — the *other* matched player too, so both
+      // sides of the match can see the same booking/confirmation code.
+      allow read: if isSignedIn()
+        && (resource.data.userId == request.auth.uid
+            || resource.data.ownerId == request.auth.uid
+            || isAdmin()
+            || (resource.data.matchId != null
+                && request.auth.uid in get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.players));
+
+      // Players book their own slot on an approved facility. ownerId is
+      // denormalized from the facility doc at write time so rules (and the
+      // owner's bookings dashboard) don't need an extra read — but it must
+      // match the real facility owner, and status/paymentStatus always
+      // start at "confirmed"/"unpaid" (auto-confirm, pay-at-venue model;
+      // no payment gateway is wired up, see docs discussion in this repo).
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'confirmed'
+        && request.resource.data.paymentStatus == 'unpaid'
+        && get(/databases/$(database)/documents/facilities/$(request.resource.data.facilityId)).data.status == 'approved'
+        && request.resource.data.ownerId == get(/databases/$(database)/documents/facilities/$(request.resource.data.facilityId)).data.ownerId
+        && (request.resource.data.matchId == null
+            || request.auth.uid in get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.players);
+
+      // The booker may only cancel their own booking. The facility owner may
+      // only mark it paid/unpaid (e.g. after a pay-at-venue cash payment).
+      // Neither can alter the slot, price, or whose booking it is.
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && request.resource.data.status == 'cancelled')
+        || (isFacilityOwner(resource.data.facilityId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'updatedAt']));
+
+      // Keep booking history intact — nobody deletes bookings client-side.
+      allow delete: if false;
+    }
+
     match /matches/{matchId} {
-      allow read: if isMatchPlayer(matchId);
+      // Checks resource.data directly (not a get() lookup) so this also
+      // works for the match-history list query
+      // (where("players","array-contains", uid)) — Firestore can only prove
+      // a `list` request is safe when the rule reads straight off the
+      // document being evaluated, not an extra get() call.
+      allow read: if isSignedIn() && request.auth.uid in resource.data.players;
       // Only Cloud Functions (Admin SDK) create/update match documents.
       allow write: if false;
 

@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, router } from "expo-router";
 import { signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -42,30 +42,9 @@ const DEFAULT_USER = {
 const QUICK_ACTIONS = [
   { id: "find", icon: "search", title: "Find Buddy", sub: "Find Player Now", route: "/(tabs)/FindBuddy" },
   { id: "score", icon: "trophy", title: "Scoreboard", sub: "View results", route: "/scoreboard" },
-  { id: "venues", icon: "location", title: "Venues", sub: "Browse courts", route: "/venues" },
+  { id: "venues", icon: "location", title: "Book a Ground", sub: "Browse & book courts", route: "/book-ground" },
   { id: "emergency", icon: "shield-checkmark", title: "Emergency", sub: "SOS & contacts", route: "/emergency" },
 ] as const;
-
-const RECENT_GAMES = [
-  {
-    id: "1",
-    opponent: "Sudesh Deshan",
-    date: "2026-03-25",
-    venue: "Sport Zone",
-    area: "Colombo 9",
-    sport: "🏸",
-    result: "won",
-  },
-  {
-    id: "2",
-    opponent: "Sudesh Deshan",
-    date: "2026-03-29",
-    venue: "Sport Zone",
-    area: "Colombo 9",
-    sport: "🎾",
-    result: "lost",
-  },
-];
 
 export default function index() {
   const { colors } = useTheme();
@@ -75,21 +54,20 @@ export default function index() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          // User not logged in, redirect to login
-          router.replace("/(auth)/LoginPage");
-          return;
-        }
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      // User not logged in, redirect to login
+      router.replace("/(auth)/LoginPage");
+      return;
+    }
 
-        // 📖 Fetch user document from Firestore
-        const userDocRef = doc(db, "users", currentUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
+    // 📖 Live-subscribe to the user document so profile changes (e.g. a new
+    // profile photo saved in Edit Profile) show up here immediately.
+    const unsubscribe = onSnapshot(
+      doc(db, "users", currentUser.uid),
+      (snap) => {
+        if (snap.exists()) {
+          const userData = snap.data();
           setUser({
             firstName: userData.fullName?.split(" ")[0] || "Guest",
             fullName: userData.fullName || "User",
@@ -106,15 +84,16 @@ export default function index() {
         } else {
           setUser(DEFAULT_USER);
         }
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.log("Error fetching user data:", error);
         setUser(DEFAULT_USER);
-      } finally {
         setLoading(false);
       }
-    };
+    );
 
-    fetchUserData();
+    return unsubscribe;
   }, []);
 
   const handleLogout = async () => {
@@ -164,26 +143,6 @@ export default function index() {
           {/* ── Greeting ── */}
           <Text style={styles.greeting}>Hey, {user.firstName} !</Text>
 
-          {/* ── Stats row ── */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Total\nGames</Text>
-              <Text style={styles.statValue}>{user.totalGames}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Tier</Text>
-              <Text style={styles.statValue}>{user.tier}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Positive\nReview</Text>
-              <Text style={styles.statValue}>{user.positive}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Negative\nReview</Text>
-              <Text style={styles.statValue}>{user.negative}</Text>
-            </View>
-          </View>
-
           {/* ── Quick Actions ── */}
           <View style={styles.actionsGrid}>
             {QUICK_ACTIONS.map((action) => (
@@ -199,52 +158,6 @@ export default function index() {
                 <Text style={styles.actionTitle}>{action.title}</Text>
                 <Text style={styles.actionSub}>{action.sub}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* ── Recent Games ── */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Games</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAll}>View all  ›</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.gamesList}>
-            {RECENT_GAMES.map((game) => (
-              <View key={game.id} style={styles.gameCard}>
-                {/* Sport emoji */}
-                <View style={styles.gameSportBox}>
-                  <Text style={styles.gameSportEmoji}>{game.sport}</Text>
-                </View>
-
-                {/* Info */}
-                <View style={styles.gameInfo}>
-                  <Text style={styles.gameOpponent}>
-                    <Text style={styles.gameVs}>vs  </Text>
-                    {game.opponent}
-                  </Text>
-                  <View style={styles.gameMeta}>
-                    <Text style={styles.gameMetaText}>📅 {game.date}</Text>
-                    <Text style={styles.gameMetaText}>
-                      📍 {game.venue}{"\n"}   {game.area}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Result badge */}
-                <View style={styles.resultBadge}>
-                  <Text style={styles.resultIcon}>
-                    {game.result === "won" ? "🏠" : "❤️"}
-                  </Text>
-                  <Text style={[
-                    styles.resultText,
-                    game.result === "won" ? styles.resultTextWon : styles.resultTextLost,
-                  ]}>
-                    {game.result === "won" ? "won" : "Lost"}
-                  </Text>
-                </View>
-              </View>
             ))}
           </View>
 
@@ -348,36 +261,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: 16,
   },
 
-  /* ── Stats ── */
-  statsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: Border.br_12,
-    padding: 10,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.accent,
-    gap: 6,
-  },
-  statLabel: {
-    color: colors.textPrimary,
-    fontFamily: FontFamily.calSans,
-    fontSize: 9,
-    textAlign: "center",
-    lineHeight: 12,
-  },
-  statValue: {
-    color: colors.textPrimary,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_16,
-    fontWeight: "700",
-  },
-
   /* ── Quick Actions ── */
   actionsGrid: {
     flexDirection: "row",
@@ -414,76 +297,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
   },
-
-  /* ── Section header ── */
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_16,
-    fontWeight: "700",
-  },
-  viewAll: {
-    color: colors.accent,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_12,
-  },
-
-  /* ── Games ── */
-  gamesList: { gap: 10, marginBottom: 20 },
-  gameCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: Border.br_16,
-    padding: 14,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-  },
-  gameSportBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.surfaceBorder,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  gameSportEmoji: { fontSize: 20 },
-  gameInfo: { flex: 1, gap: 4 },
-  gameOpponent: {
-    color: colors.textPrimary,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_13,
-    fontWeight: "700",
-  },
-  gameVs: { color: colors.textSecondary, fontWeight: "400" },
-  gameMeta: { flexDirection: "row", gap: 12 },
-  gameMetaText: {
-    color: colors.textSecondary,
-    fontFamily: FontFamily.calSans,
-    fontSize: 10,
-    lineHeight: 15,
-  },
-  resultBadge: {
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 2,
-    paddingHorizontal: 4,
-  },
-  resultIcon: { fontSize: 14 },
-  resultText: {
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_12,
-    fontWeight: "700",
-  },
-  resultTextWon: { color: colors.accent },
-  resultTextLost: { color: colors.danger },
 
   /* ── Profile Card ── */
   profileCard: {

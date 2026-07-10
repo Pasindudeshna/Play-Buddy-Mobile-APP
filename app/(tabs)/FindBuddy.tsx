@@ -271,11 +271,8 @@ export default function FindBuddy() {
             <Text style={styles.brandB}>B</Text>{"  "}PLAY BUDDY
           </Text>
           <View style={styles.topBarRight}>
-            <TouchableOpacity style={styles.iconBtn}>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/profile")}>
               <Ionicons name="person-circle-outline" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Ionicons name="menu-outline" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>

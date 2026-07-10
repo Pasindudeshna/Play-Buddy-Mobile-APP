@@ -6,6 +6,7 @@ import LoginPage from "./routes/LoginPage";
 import HomePage from "./routes/HomePage";
 import OwnerDashboard from "./routes/OwnerDashboard";
 import FacilityFormPage from "./routes/FacilityFormPage";
+import ManageGroundPage from "./routes/ManageGroundPage";
 import AdminPendingQueue from "./routes/AdminPendingQueue";
 import AdminAllFacilities from "./routes/AdminAllFacilities";
 import RequireAuth from "./routes/RequireAuth";
@@ -81,6 +82,14 @@ export default function App() {
           element={
             <RequireAuth>
               <FacilityFormPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/dashboard/manage/:id"
+          element={
+            <RequireAuth>
+              <ManageGroundPage />
             </RequireAuth>
           }
         />

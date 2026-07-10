@@ -106,6 +106,7 @@ export default function Venues({ matchId }: VenuesProps) {
     setBusyVenueId(venueId);
     try {
       await confirmVenue(matchId, venueId);
+      router.push({ pathname: "/ground-confirmation", params: { matchId } });
     } catch (e: any) {
       alert(e?.message ?? "Couldn't confirm venue.");
     } finally {
@@ -156,6 +157,17 @@ export default function Venues({ matchId }: VenuesProps) {
               </Text>
             </View>
           </View>
+
+          {matchId && match?.selectedVenueId && (
+            <TouchableOpacity
+              style={styles.continueBanner}
+              activeOpacity={0.85}
+              onPress={() => router.push({ pathname: "/ground-confirmation", params: { matchId } })}
+            >
+              <Text style={styles.continueBannerText}>Venue confirmed — continue to booking</Text>
+              <Text style={styles.continueBannerArrow}>→</Text>
+            </TouchableOpacity>
+          )}
 
           {!matchId ? (
             <Text style={styles.emptyText}>No match selected.</Text>
@@ -336,6 +348,30 @@ const styles = StyleSheet.create({
     fontSize: FontSize.fs_13,
     textAlign: "center",
     marginTop: 24,
+  },
+
+  continueBanner: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(69,255,179,0.15)",
+    borderWidth: 1,
+    borderColor: Color.colorMediumspringgreen,
+    borderRadius: Border.br_16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
+  continueBannerText: {
+    color: Color.colorWhite,
+    fontFamily: FontFamily.calSans,
+    fontSize: FontSize.fs_13,
+    fontWeight: "700",
+  },
+  continueBannerArrow: {
+    color: Color.colorMediumspringgreen,
+    fontSize: 18,
+    fontWeight: "700",
   },
 
   /* ── Venue cards ── */
