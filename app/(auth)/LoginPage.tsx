@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -67,86 +68,91 @@ export default function LoginPage() {
           style={styles.keyboardView}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.brand}>
-              <Text style={styles.brandB}>B</Text>
-              {"  "}PLAY BUDDY
-            </Text>
-          </View>
-
-          {/* Title block */}
-          <View style={styles.titleBlock}>
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Login to find your play buddy</Text>
-          </View>
-
-          {/* Form card */}
-          <View style={styles.card}>
-            {/* Email */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email Address</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="name@gmail.com"
-                placeholderTextColor={Color.colorGray300}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={email}
-                onChangeText={setEmail}
-              />
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.brand}>
+                <Text style={styles.brandB}>B</Text>
+                {"  "}PLAY BUDDY
+              </Text>
             </View>
 
-            {/* Password */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordWrapper}>
+            {/* Title block */}
+            <View style={styles.titleBlock}>
+              <Text style={styles.title}>Welcome back</Text>
+              <Text style={styles.subtitle}>Login to find your play buddy</Text>
+            </View>
+
+            {/* Form card */}
+            <View style={styles.card}>
+              {/* Email */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Email Address</Text>
                 <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  placeholder="••••••••••••"
-                  placeholderTextColor={Color.colorGray400}
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
+                  style={styles.input}
+                  placeholder="name@gmail.com"
+                  placeholderTextColor={Color.colorGray300}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={email}
+                  onChangeText={setEmail}
                 />
-                <TouchableOpacity
-                  style={styles.eyeBtn}
-                  onPress={() => setShowPassword((v) => !v)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.eyeIcon}>{showPassword ? "🙈" : "👁"}</Text>
-                </TouchableOpacity>
               </View>
+
+              {/* Password */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordWrapper}>
+                  <TextInput
+                    style={[styles.input, styles.passwordInput]}
+                    placeholder="••••••••••••"
+                    placeholderTextColor={Color.colorGray400}
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeBtn}
+                    onPress={() => setShowPassword((v) => !v)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.eyeIcon}>{showPassword ? "🙈" : "👁"}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Login button */}
+              <TouchableOpacity
+                style={[styles.loginBtn, !canLogin && styles.loginBtnDisabled]}
+                activeOpacity={canLogin ? 0.85 : 1}
+                onPress={handleLogin}
+                disabled={!canLogin}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={Color.colorWhite} size="small" />
+                ) : (
+                  <Text style={[styles.loginBtnText, !canLogin && styles.loginBtnTextDisabled]}>
+                    Login
+                  </Text>
+                )}
+              </TouchableOpacity>
             </View>
 
-            {/* Login button */}
-            <TouchableOpacity
-              style={[styles.loginBtn, !canLogin && styles.loginBtnDisabled]}
-              activeOpacity={canLogin ? 0.85 : 1}
-              onPress={handleLogin}
-              disabled={!canLogin}
-            >
-              {isLoading ? (
-                <ActivityIndicator color={Color.colorWhite} size="small" />
-              ) : (
-                <Text style={[styles.loginBtnText, !canLogin && styles.loginBtnTextDisabled]}>
-                  Login
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Sign up link */}
-          <View style={styles.signupRow}>
-            <Text style={styles.signupText}>Don't have an account? </Text>
-            <Link href="../signup/SignupAccount" asChild>
-              <TouchableOpacity>
-                <Text style={styles.signupLink}>Sign Up</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
-
+            {/* Sign up link */}
+            <View style={styles.signupRow}>
+              <Text style={styles.signupText}>Don't have an account? </Text>
+              <Link href="../signup/SignupAccount" asChild>
+                <TouchableOpacity>
+                  <Text style={styles.signupLink}>Sign Up</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -159,6 +165,9 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   keyboardView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     justifyContent: "space-between",
     paddingBottom: 40,

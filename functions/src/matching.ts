@@ -33,6 +33,14 @@ function timeSlotsOverlap(a: QueueTicket["timeSlot"], b: QueueTicket["timeSlot"]
   return a.start.toMillis() < b.end.toMillis() && a.end.toMillis() > b.start.toMillis();
 }
 
+/** The overlapping window both players are actually free for — not just whichever ticket happened to initiate the match. */
+function overlapTimeSlot(a: QueueTicket["timeSlot"], b: QueueTicket["timeSlot"]): QueueTicket["timeSlot"] {
+  return {
+    start: a.start.toMillis() > b.start.toMillis() ? a.start : b.start,
+    end: a.end.toMillis() < b.end.toMillis() ? a.end : b.end,
+  };
+}
+
 /**
  * Finds every valid candidate ticket for `ticket` within its own
  * `searchRadiusKm` — same sport, overlapping time slot, excluding the
@@ -126,7 +134,7 @@ async function tryCreateMatch(
     tx.set(matchRef, {
       sport: ticket.sport,
       date: ticket.date,
-      timeSlot: ticket.timeSlot,
+      timeSlot: overlapTimeSlot(ticket.timeSlot, candidate.timeSlot),
       players: [ticket.userId, candidate.userId],
       playerCoords,
       midpoint,

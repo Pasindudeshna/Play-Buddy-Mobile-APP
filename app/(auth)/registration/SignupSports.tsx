@@ -85,84 +85,85 @@ export default function SignupSports() {
         style={styles.background}
       />
       <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.brand}>
+              <Text style={styles.brandB}>B</Text>
+              {"  "}PLAY BUDDY
+            </Text>
+          </View>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.brand}>
-            <Text style={styles.brandB}>B</Text>
-            {"  "}PLAY BUDDY
-          </Text>
-        </View>
+          {/* Title */}
+          <View style={styles.titleBlock}>
+            <Text style={styles.joinText}>
+              Join{" "}
+              <Text style={styles.joinBrand}>PLAY BUDDY</Text>
+            </Text>
+            <Text style={styles.subtitle}>Complete your profile to start finding buddies</Text>
+          </View>
 
-        {/* Title */}
-        <View style={styles.titleBlock}>
-          <Text style={styles.joinText}>
-            Join{" "}
-            <Text style={styles.joinBrand}>PLAY BUDDY</Text>
-          </Text>
-          <Text style={styles.subtitle}>Complete your profile to start finding buddies</Text>
-        </View>
+          {/* Step Indicator */}
+          <StepIndicator currentStep={2} />
 
-        {/* Step Indicator */}
-        <StepIndicator currentStep={2} />
+          {/* Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Sports Preferences</Text>
+            <Text style={styles.cardSubtitle}>Select all sports you play and set your skill level for each</Text>
 
-        {/* Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Sports Preferences</Text>
-          <Text style={styles.cardSubtitle}>Select all sports you play and set your skill level for each</Text>
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.sportsList}
-          >
-            {SPORTS.map((sport) => {
-              const isSelected = selected.has(sport.id);
-              return (
-                <TouchableOpacity
-                  key={sport.id}
-                  style={[styles.sportCard, isSelected && styles.sportCardSelected]}
-                  onPress={() => toggle(sport.id)}
-                  activeOpacity={0.8}
-                >
-                  {/* Left: emoji bubble */}
-                  <View style={[styles.emojiBox, isSelected && styles.emojiBoxSelected]}>
-                    <Text style={styles.emoji}>{sport.emoji}</Text>
-                  </View>
-
-                  {/* Label */}
-                  <Text style={[styles.sportLabel, isSelected && styles.sportLabelSelected]}>
-                    {sport.label}
-                  </Text>
-
-                  {/* Checkmark if selected */}
-                  {isSelected && (
-                    <View style={styles.checkBadge}>
-                      <Text style={styles.checkIcon}>✓</Text>
+            <View style={styles.sportsList}>
+              {SPORTS.map((sport) => {
+                const isSelected = selected.has(sport.id);
+                return (
+                  <TouchableOpacity
+                    key={sport.id}
+                    style={[styles.sportCard, isSelected && styles.sportCardSelected]}
+                    onPress={() => toggle(sport.id)}
+                    activeOpacity={0.8}
+                  >
+                    {/* Left: emoji bubble */}
+                    <View style={[styles.emojiBox, isSelected && styles.emojiBoxSelected]}>
+                      <Text style={styles.emoji}>{sport.emoji}</Text>
                     </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
 
-        {/* Bottom Nav */}
-        <View style={styles.bottomNav}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backText}>{"< Back"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.continueBtn}
-            activeOpacity={0.85}
-            onPress={handleUpdateSports}
-          >
-            <Text style={styles.continueBtnText}>Continue  ›</Text>
-          </TouchableOpacity>
-        </View>
+                    {/* Label */}
+                    <Text style={[styles.sportLabel, isSelected && styles.sportLabelSelected]}>
+                      {sport.label}
+                    </Text>
 
-        {/* Dots */}
-        <PageDots total={4} current={2} />
+                    {/* Checkmark if selected */}
+                    {isSelected && (
+                      <View style={styles.checkBadge}>
+                        <Text style={styles.checkIcon}>✓</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
 
+          {/* Bottom Nav */}
+          <View style={styles.bottomNav}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.backText}>{"< Back"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.continueBtn}
+              activeOpacity={0.85}
+              onPress={handleUpdateSports}
+            >
+              <Text style={styles.continueBtnText}>Continue  ›</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Dots */}
+          <PageDots total={4} current={2} />
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -171,10 +172,10 @@ export default function SignupSports() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Color.colorBlack },
   background: { ...StyleSheet.absoluteFillObject },
-  safeArea: {
-    flex: 1,
+  safeArea: { flex: 1 },
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 8,
+    paddingBottom: 32,
   },
 
   header: { marginTop: 16, marginBottom: 8 },
@@ -211,7 +212,6 @@ const styles = StyleSheet.create({
     borderRadius: Border.br_16,
     padding: Padding.padding_20,
     marginTop: 16,
-    flex: 1,
     borderWidth: 1,
     borderColor: "rgba(69,255,179,0.08)",
   },

@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { auth, db } from "../firebaseConfig";
+import { callMatchApi } from "../lib/matchApi";
 import {
   Border,
   Color,
@@ -26,6 +27,10 @@ import {
   FontSize,
   Padding,
 } from "../styles/GlobalStyles";
+
+type BuddyRating = "like" | "dislike";
+const rateBuddy = (matchId: string, rating: BuddyRating) =>
+  callMatchApi("/api/rate-buddy", { matchId, rating });
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
@@ -156,6 +161,7 @@ type MatchDoc = {
   playerCoords?: Record<string, GeoPoint>;
   status: string;
   selectedVenueId: string | null;
+  ratings?: Record<string, BuddyRating>;
 };
 
 type OpponentProfile = {
@@ -166,7 +172,7 @@ type OpponentProfile = {
   gender: string;
   positive: number;
   negative: number;
-  avatar: null;
+  avatar: string | null;
 };
 
 type VenueInfo = { name: string; address: string | null };
@@ -204,6 +210,7 @@ export default function MatchFound({ matchId, onBack }: MatchFoundProps) {
   const [match, setMatch] = useState<MatchDoc | null>(null);
   const [opponent, setOpponent] = useState<OpponentProfile>(DEFAULT_OPPONENT);
   const [venue, setVenue] = useState<VenueInfo | null>(null);
+  const [ratingBusy, setRatingBusy] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "matches", matchId), async (snap) => {
@@ -230,7 +237,7 @@ export default function MatchFound({ matchId, onBack }: MatchFoundProps) {
             gender: u.gender ?? DEFAULT_OPPONENT.gender,
             positive: u.positiveReviews ?? 0,
             negative: u.negativeReviews ?? 0,
-            avatar: null,
+            avatar: u.photoURL ?? null,
           });
         }
       }
@@ -282,6 +289,20 @@ export default function MatchFound({ matchId, onBack }: MatchFoundProps) {
 
   const myUid = auth.currentUser?.uid;
   const opponentUid = match.players.find((id) => id !== myUid);
+  const myRating = myUid ? match.ratings?.[myUid] ?? null : null;
+
+  const handleRate = async (rating: BuddyRating) => {
+    if (!myUid || ratingBusy || myRating === rating) return;
+    setRatingBusy(true);
+    try {
+      await rateBuddy(matchId, rating);
+    } catch (e: any) {
+      alert(e?.message ?? "Couldn't save your rating.");
+    } finally {
+      setRatingBusy(false);
+    }
+  };
+
   const myCoords = myUid ? match.playerCoords?.[myUid] : undefined;
   const opponentCoords = opponentUid ? match.playerCoords?.[opponentUid] : undefined;
   const partnerDistanceKm =
@@ -353,7 +374,7 @@ export default function MatchFound({ matchId, onBack }: MatchFoundProps) {
           <View style={styles.playerCard}>
             <View style={styles.playerAvatarBox}>
               {opponent.avatar ? (
-                <Image source={opponent.avatar} style={styles.playerAvatar} />
+                <Image source={{ uri: opponent.avatar }} style={styles.playerAvatar} />
               ) : (
                 <View style={styles.playerAvatarPlaceholder} />
               )}
@@ -372,14 +393,24 @@ export default function MatchFound({ matchId, onBack }: MatchFoundProps) {
                 <Text style={styles.playerMetaText}>{opponent.gender}</Text>
               </View>
               <View style={styles.reviewBadges}>
-                <View style={styles.reviewBadge}>
+                <TouchableOpacity
+                  style={[styles.reviewBadge, myRating === "like" && styles.reviewBadgeActiveLike]}
+                  activeOpacity={0.7}
+                  disabled={ratingBusy}
+                  onPress={() => handleRate("like")}
+                >
                   <Text style={styles.thumbUp}>👍</Text>
                   <Text style={styles.reviewPositive}>{opponent.positive}</Text>
-                </View>
-                <View style={styles.reviewBadge}>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.reviewBadge, myRating === "dislike" && styles.reviewBadgeActiveDislike]}
+                  activeOpacity={0.7}
+                  disabled={ratingBusy}
+                  onPress={() => handleRate("dislike")}
+                >
                   <Text style={styles.thumbDown}>👎</Text>
                   <Text style={styles.reviewNegative}>{opponent.negative}</Text>
-                </View>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -553,7 +584,24 @@ const styles = StyleSheet.create({
   },
   playerMetaDot: { color: Color.colorGray300, fontSize: 10 },
   reviewBadges: { flexDirection: "row", gap: 14 },
-  reviewBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
+  reviewBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Border.br_full,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  reviewBadgeActiveLike: {
+    backgroundColor: "rgba(69,255,179,0.15)",
+    borderColor: Color.colorMediumspringgreen,
+  },
+  reviewBadgeActiveDislike: {
+    backgroundColor: "rgba(255,69,0,0.12)",
+    borderColor: Color.colorOrangered,
+  },
   thumbUp: { fontSize: 14 },
   thumbDown: { fontSize: 14 },
   reviewPositive: {

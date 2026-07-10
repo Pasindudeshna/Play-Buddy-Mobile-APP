@@ -4,6 +4,7 @@ import * as React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -46,61 +47,64 @@ export default function WelcomePage1() {
       {/* Top-level View offsets Android status bar, then SafeAreaView handles iOS */}
       <View style={[styles.inner, { paddingTop: statusBarHeight }]}>
         <SafeAreaView style={styles.safeArea}>
-
-          {/* ── Header ── */}
-          <View style={styles.header}>
-            <View style={styles.logoRow}>
-              <View style={styles.logoMark}>
-                <Text style={styles.logoMarkText}>B</Text>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* ── Header ── */}
+            <View style={styles.header}>
+              <View style={styles.logoRow}>
+                <View style={styles.logoMark}>
+                  <Text style={styles.logoMarkText}>B</Text>
+                </View>
+                <Text style={styles.brand}>PLAY BUDDY</Text>
               </View>
-              <Text style={styles.brand}>PLAY BUDDY</Text>
-            </View>
-          </View>
-
-          {/* ── Centre block: badge + hero copy ── */}
-          <View style={styles.centerBlock}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeIcon}>⚡</Text>
-              <Text style={styles.badgeText}>Find Your Perfect Play Buddy</Text>
             </View>
 
-            <Text style={styles.title}>Never Play</Text>
-            <Text style={styles.titleAccent}>Alone Again</Text>
-            <Text style={styles.description}>
-              Connect with verified sports enthusiasts near you. Find partners,
-              book venues, split costs and play your favourite indoor sports — all
-              in one app.
-            </Text>
-          </View>
+            {/* ── Centre block: badge + hero copy ── */}
+            <View style={styles.centerBlock}>
+              <View style={styles.badge}>
+                <Text style={styles.badgeIcon}>⚡</Text>
+                <Text style={styles.badgeText}>Find Your Perfect Play Buddy</Text>
+              </View>
 
-          {/* ── Spacer fills remaining space ── */}
-          <View style={styles.spacer} />
+              <Text style={styles.title}>Never Play</Text>
+              <Text style={styles.titleAccent}>Alone Again</Text>
+              <Text style={styles.description}>
+                Connect with verified sports enthusiasts near you. Find partners,
+                book venues, split costs and play your favourite indoor sports — all
+                in one app.
+              </Text>
+            </View>
 
-          {/* ── Pagination dots ── */}
-          <View style={styles.pagination}>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <View key={i} style={[styles.dot, i === 0 && styles.activeDot]} />
-            ))}
-          </View>
+            {/* ── Spacer fills remaining space ── */}
+            <View style={styles.spacer} />
 
-          {/* ── Buttons ── */}
-          <View style={styles.buttons}>
-            <Link href="/welcome/WelcomePage2" asChild>
-              <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
-                <Text style={styles.buttonIconLeft}>▶</Text>
-                <Text style={styles.primaryButtonText}>Get Started Free</Text>
-                <Text style={styles.buttonIconRight}>◀</Text>
-              </TouchableOpacity>
-            </Link>
+            {/* ── Pagination dots ── */}
+            <View style={styles.pagination}>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <View key={i} style={[styles.dot, i === 0 && styles.activeDot]} />
+              ))}
+            </View>
 
-            <Link href="/(auth)/LoginPage" asChild>
-              <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.75}>
-                <Text style={styles.secondaryButtonText}>Login to play</Text>
-                <Text style={styles.secondaryArrow}> ›</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
+            {/* ── Buttons ── */}
+            <View style={styles.buttons}>
+              <Link href="/welcome/WelcomePage2" asChild>
+                <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
+                  <Text style={styles.buttonIconLeft}>▶</Text>
+                  <Text style={styles.primaryButtonText}>Get Started Free</Text>
+                  <Text style={styles.buttonIconRight}>◀</Text>
+                </TouchableOpacity>
+              </Link>
 
+              <Link href="/(auth)/LoginPage" asChild>
+                <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.75}>
+                  <Text style={styles.secondaryButtonText}>Login to play</Text>
+                  <Text style={styles.secondaryArrow}> ›</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+          </ScrollView>
         </SafeAreaView>
       </View>
     </View>
@@ -118,6 +122,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
+  },
+  scrollContent: {
+    flexGrow: 1,
     // Fixed bottom padding so buttons are never clipped by gesture bar
     paddingBottom: 40,
   },

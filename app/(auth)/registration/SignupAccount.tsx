@@ -8,6 +8,7 @@ import * as React from "react";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -50,6 +51,11 @@ export default function SignupAccount() {
       fullName: fullName,
       email: email,
       phone: phone,
+      // Firestore's orderBy() excludes docs missing the field entirely, so
+      // this needs to exist from account creation for the scoreboard query
+      // (orderBy("points","desc")) to include everyone, not just players
+      // who've already earned a point.
+      points: 0,
       createdAt: new Date(),
     });
 
@@ -73,116 +79,120 @@ export default function SignupAccount() {
         style={styles.background}
       />
       <SafeAreaView style={styles.safeArea}>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.brand}>
-            <Text style={styles.brandB}>B</Text>
-            {"  "}PLAY BUDDY
-          </Text>
-        </View>
-
-        {/* Title */}
-        <View style={styles.titleBlock}>
-          <Text style={styles.joinText}>
-            Join{" "}
-            <Text style={styles.joinBrand}>PLAY BUDDY</Text>
-          </Text>
-          <Text style={styles.subtitle}>Complete your profile to start finding buddies</Text>
-        </View>
-
-        {/* Step Indicator */}
-        <StepIndicator currentStep={0} />
-
-        {/* Form Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Create Your Account</Text>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Pasindu Fernando"
-              placeholderTextColor={Color.colorGray300}
-              value={fullName}
-              onChangeText={setFullName}
-            />
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.brand}>
+              <Text style={styles.brandB}>B</Text>
+              {"  "}PLAY BUDDY
+            </Text>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="name@gmail.com"
-              placeholderTextColor={Color.colorGray300}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
+          {/* Title */}
+          <View style={styles.titleBlock}>
+            <Text style={styles.joinText}>
+              Join{" "}
+              <Text style={styles.joinBrand}>PLAY BUDDY</Text>
+            </Text>
+            <Text style={styles.subtitle}>Complete your profile to start finding buddies</Text>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Phone Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="+94 *********"
-              placeholderTextColor={Color.colorGray300}
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={setPhone}
-            />
-          </View>
+          {/* Step Indicator */}
+          <StepIndicator currentStep={0} />
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordWrapper}>
+          {/* Form Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Create Your Account</Text>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Full Name</Text>
               <TextInput
-                style={[styles.input, styles.passwordInput]}
-                placeholder="Min. 8 Characters"
+                style={styles.input}
+                placeholder="Pasindu Fernando"
                 placeholderTextColor={Color.colorGray300}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
+                value={fullName}
+                onChangeText={setFullName}
               />
-              <TouchableOpacity
-                style={styles.eyeBtn}
-                onPress={() => setShowPassword((v) => !v)}
-              >
-                <Text style={styles.eyeIcon}>{showPassword ? "👁" : "🙈"}</Text>
-              </TouchableOpacity>
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Email Address</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="name@gmail.com"
+                placeholderTextColor={Color.colorGray300}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Phone Number</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+94 *********"
+                placeholderTextColor={Color.colorGray300}
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordWrapper}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  placeholder="Min. 8 Characters"
+                  placeholderTextColor={Color.colorGray300}
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword((v) => !v)}
+                >
+                  <Text style={styles.eyeIcon}>{showPassword ? "👁" : "🙈"}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Bottom Nav */}
-        <View style={styles.bottomNav}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backText}>{"< Back"}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-              style={styles.continueBtn}
-              activeOpacity={0.85}
-              onPress={handleSignup}
-            >
-              <Text style={styles.continueBtnText}>
-                Continue ›
-              </Text>
+          {/* Bottom Nav */}
+          <View style={styles.bottomNav}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.backText}>{"< Back"}</Text>
             </TouchableOpacity>
-        </View>
 
-        {/* Login link */}
-        <View style={styles.loginRow}>
-          <Text style={styles.loginText}>Already have an account?  </Text>
-          <TouchableOpacity>
-            <Text style={styles.loginLink}>Login</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+                style={styles.continueBtn}
+                activeOpacity={0.85}
+                onPress={handleSignup}
+              >
+                <Text style={styles.continueBtnText}>
+                  Continue ›
+                </Text>
+              </TouchableOpacity>
+          </View>
 
-        {/* Dots */}
-        <PageDots total={4} current={0} />
+          {/* Login link */}
+          <View style={styles.loginRow}>
+            <Text style={styles.loginText}>Already have an account?  </Text>
+            <TouchableOpacity>
+              <Text style={styles.loginLink}>Login</Text>
+            </TouchableOpacity>
+          </View>
 
+          {/* Dots */}
+          <PageDots total={4} current={0} />
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -232,10 +242,10 @@ export function PageDots({ total, current }: { total: number; current: number })
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Color.colorBlack },
   background: { ...StyleSheet.absoluteFillObject },
-  safeArea: {
-    flex: 1,
+  safeArea: { flex: 1 },
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 8,
+    paddingBottom: 32,
   },
 
   header: { marginTop: 16, marginBottom: 8 },

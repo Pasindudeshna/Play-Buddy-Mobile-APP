@@ -5,6 +5,7 @@ import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -15,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme, type ThemeColors } from "../contexts/ThemeContext";
 import { auth } from "../firebaseConfig";
-import { subscribeToMatchHistory, type MatchHistoryEntry } from "../lib/matchHistory";
+import { clearMatchHistory, subscribeToMatchHistory, type MatchHistoryEntry } from "../lib/matchHistory";
 import { Border, FontFamily, FontSize, Padding } from "../styles/GlobalStyles";
 
 const SPORT_EMOJI: Record<string, string> = {
@@ -34,12 +35,41 @@ const STATUS_LABEL: Record<string, string> = {
   venue_selected: "Venue confirmed",
 };
 
+function formatTime(ts: MatchHistoryEntry["timeSlot"]["start"]): string {
+  return ts.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function MatchHistory({ onBack }: { onBack: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [matches, setMatches] = useState<MatchHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
+
+  const handleClear = () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || matches.length === 0) return;
+    Alert.alert(
+      "Clear match history?",
+      "This removes matches from your history. It won't affect your buddy's history or any chats/bookings.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            setClearing(true);
+            try {
+              await clearMatchHistory(uid);
+            } finally {
+              setClearing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -71,7 +101,21 @@ export default function MatchHistory({ onBack }: { onBack: () => void }) {
             <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.title}>Match History</Text>
-          <View style={{ width: 36 }} />
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={handleClear}
+            disabled={clearing || matches.length === 0}
+          >
+            {clearing ? (
+              <ActivityIndicator size="small" color={colors.danger} />
+            ) : (
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={matches.length === 0 ? colors.textSecondary : colors.danger}
+              />
+            )}
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -107,8 +151,9 @@ export default function MatchHistory({ onBack }: { onBack: () => void }) {
                     {SPORT_EMOJI[m.sport] ?? "🏅"} vs {m.opponentName}
                   </Text>
                   <Text style={styles.meta}>
-                    {m.date} · {STATUS_LABEL[m.status] ?? m.status}
+                    {m.date} · {formatTime(m.timeSlot.start)}–{formatTime(m.timeSlot.end)}
                   </Text>
+                  <Text style={styles.meta}>{STATUS_LABEL[m.status] ?? m.status}</Text>
                 </View>
 
                 <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.accent} />

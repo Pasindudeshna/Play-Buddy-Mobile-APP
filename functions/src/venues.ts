@@ -265,7 +265,11 @@ export const onMatchCreated = onDocumentCreated(
       }
     }
 
-    venues.sort((a, b) => fairnessScore(a.distanceByPlayerKm) - fairnessScore(b.distanceByPlayerKm));
+    // Registered facilities always rank above Places results; within each group, rank by fairness.
+    venues.sort((a, b) => {
+      if (a.source !== b.source) return a.source === "registered" ? -1 : 1;
+      return fairnessScore(a.distanceByPlayerKm) - fairnessScore(b.distanceByPlayerKm);
+    });
 
     const batch = db.batch();
     for (const { _id, ...venue } of venues.slice(0, MAX_VENUE_OPTIONS)) {

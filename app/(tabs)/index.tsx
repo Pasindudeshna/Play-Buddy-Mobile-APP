@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme, type ThemeColors } from "../../contexts/ThemeContext";
 import { auth, db } from "../../firebaseConfig";
+import { getTierProgress } from "../../lib/points";
 import {
   Border,
   FontFamily,
@@ -24,19 +25,12 @@ import {
   Padding
 } from "../../styles/GlobalStyles";
 
-/* ── Mock data ── */
 const DEFAULT_USER = {
   firstName: "Guest",
   fullName: "Guest User",
   location: "Location not set",
   photoURL: null as string | null,
-  tier: "Bronze",
-  nextTier: "Silver",
-  gamesPlayed: 0,
-  gamesNeeded: 10,
-  positive: 0,
-  negative: 0,
-  totalGames: 0,
+  points: 0,
 };
 
 const QUICK_ACTIONS = [
@@ -73,13 +67,7 @@ export default function index() {
             fullName: userData.fullName || "User",
             location: userData.city || "Location not set",
             photoURL: userData.photoURL || null,
-            tier: userData.tier || "Bronze",
-            nextTier: userData.nextTier || "Silver",
-            gamesPlayed: userData.gamesPlayed || 0,
-            gamesNeeded: userData.gamesNeeded || 10,
-            positive: userData.positiveReviews || 0,
-            negative: userData.negativeReviews || 0,
-            totalGames: userData.totalGames || 0,
+            points: userData.points || 0,
           });
         } else {
           setUser(DEFAULT_USER);
@@ -105,7 +93,7 @@ export default function index() {
     }
   };
 
-  const progress = user.gamesPlayed / user.gamesNeeded;
+  const tierProgress = getTierProgress(user.points);
 
   if (loading) {
     return (
@@ -179,35 +167,23 @@ export default function index() {
 
             {/* Tier progress */}
             <View style={styles.progressRow}>
-              <Text style={styles.progressTier}>{user.tier}</Text>
+              <Text style={styles.progressTier}>{tierProgress.tier}</Text>
               <Text style={styles.progressGoal}>
-                {Math.max(0, user.gamesNeeded - user.gamesPlayed)} games to {user.nextTier}
+                {tierProgress.nextTier
+                  ? `${tierProgress.pointsForNextTier! - tierProgress.pointsIntoTier} pts to ${tierProgress.nextTier}`
+                  : "Top tier"}
               </Text>
             </View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${Math.min(progress * 100, 100)}%` }]} />
+              <View
+                style={[styles.progressFill, { width: `${Math.min(tierProgress.progress * 100, 100)}%` }]}
+              />
             </View>
             <View style={styles.progressLabels}>
-              <Text style={styles.progressLabel}>{user.gamesPlayed} games</Text>
-              <Text style={styles.progressLabel}>{user.gamesNeeded}</Text>
-            </View>
-
-            {/* Review stats */}
-            <View style={styles.reviewRow}>
-              <View style={styles.reviewItem}>
-                <Text style={styles.reviewValue}>{user.positive}</Text>
-                <Text style={styles.reviewLabel}>Positive</Text>
-              </View>
-              <View style={styles.reviewDivider} />
-              <View style={styles.reviewItem}>
-                <Text style={[styles.reviewValue, styles.reviewNegative]}>{user.negative}</Text>
-                <Text style={styles.reviewLabel}>Negative</Text>
-              </View>
-              <View style={styles.reviewDivider} />
-              <View style={styles.reviewItem}>
-                <Text style={styles.reviewValue}>{user.totalGames}</Text>
-                <Text style={styles.reviewLabel}>Games</Text>
-              </View>
+              <Text style={styles.progressLabel}>{user.points} pts</Text>
+              {tierProgress.pointsForNextTier != null && (
+                <Text style={styles.progressLabel}>{tierProgress.pointsForNextTier} pts</Text>
+              )}
             </View>
 
             {/* View Full Profile button */}
@@ -371,32 +347,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: FontFamily.calSans,
     fontSize: FontSize.fs_10,
-  },
-
-  reviewRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginTop: 4,
-  },
-  reviewItem: { alignItems: "center", gap: 2 },
-  reviewValue: {
-    color: colors.accent,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_20,
-    fontWeight: "700",
-  },
-  reviewNegative: { color: colors.danger },
-  reviewLabel: {
-    color: colors.textSecondary,
-    fontFamily: FontFamily.calSans,
-    fontSize: FontSize.fs_10,
-  },
-  reviewDivider: {
-    width: 1,
-    height: "80%",
-    backgroundColor: colors.border,
-    alignSelf: "center",
   },
 
   profileBtn: {

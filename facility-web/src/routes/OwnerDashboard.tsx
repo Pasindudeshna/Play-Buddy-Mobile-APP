@@ -52,8 +52,8 @@ export default function OwnerDashboard() {
         <p className="empty-text">Loading…</p>
       ) : facilities.length === 0 ? (
         <p className="empty-text">
-          You haven't registered any grounds yet. Once approved, your ground can be suggested
-          to matched players in the Play Buddy app.
+          You haven't registered any grounds yet. Once you register one, it can be suggested
+          to matched players in the Play Buddy app right away.
         </p>
       ) : (
         facilities.map((f) => (
@@ -76,15 +76,14 @@ export default function OwnerDashboard() {
             )}
             <div className="divider" />
             <div className="row" style={{ justifyContent: "flex-start", gap: 10 }}>
-              {f.status === "approved" ? (
+              {f.status === "approved" && (
                 <Link className="btn btn-sm" to={`/dashboard/manage/${f.id}`}>
                   Manage slots & bookings
                 </Link>
-              ) : (
-                <Link className="btn btn-outline btn-sm" to={`/dashboard/edit/${f.id}`}>
-                  Edit
-                </Link>
               )}
+              <Link className="btn btn-outline btn-sm" to={`/dashboard/edit/${f.id}`}>
+                Edit
+              </Link>
               <a
                 className="btn btn-outline btn-sm"
                 href={`https://www.google.com/maps/search/?api=1&query=${f.location.latitude},${f.location.longitude}`}

@@ -50,70 +50,72 @@ export default function WelcomePage2() {
 
       <View style={[styles.inner, { paddingTop: statusBarHeight }]}>
         <SafeAreaView style={styles.safeArea}>
-
-          {/* ── Header ── */}
-          <View style={styles.header}>
-            <View style={styles.logoRow}>
-              <View style={styles.logoMark}>
-                <Text style={styles.logoMarkText}>B</Text>
-              </View>
-              <Text style={styles.brand}>PLAY BUDDY</Text>
-            </View>
-          </View>
-
-          {/* ── Centre block: badge + title ── */}
-          <View style={styles.centerBlock}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeIcon}>🏸</Text>
-              <Text style={styles.badgeText}>Pick Your Sport</Text>
-            </View>
-
-            <Text style={styles.title}>Available</Text>
-            <Text style={styles.titleAccent}>Sports</Text>
-            <Text style={styles.description}>
-              Choose from our growing list of supported sports. More are coming soon!
-            </Text>
-          </View>
-
-          {/* ── Sport cards ── */}
           <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.cardList}
+            contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {sports.map((sport) => (
-              <View key={sport.name} style={styles.card}>
-                <Text style={styles.cardName}>{sport.name}</Text>
-                <View style={styles.cardStatusPill}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.cardStatus}>{sport.status}</Text>
+            {/* ── Header ── */}
+            <View style={styles.header}>
+              <View style={styles.logoRow}>
+                <View style={styles.logoMark}>
+                  <Text style={styles.logoMarkText}>B</Text>
                 </View>
+                <Text style={styles.brand}>PLAY BUDDY</Text>
               </View>
-            ))}
+            </View>
+
+            {/* ── Centre block: badge + title ── */}
+            <View style={styles.centerBlock}>
+              <View style={styles.badge}>
+                <Text style={styles.badgeIcon}>🏸</Text>
+                <Text style={styles.badgeText}>Pick Your Sport</Text>
+              </View>
+
+              <Text style={styles.title}>Available</Text>
+              <Text style={styles.titleAccent}>Sports</Text>
+              <Text style={styles.description}>
+                Choose from our growing list of supported sports. More are coming soon!
+              </Text>
+            </View>
+
+            {/* ── Sport cards ── */}
+            <View style={styles.cardList}>
+              {sports.map((sport) => (
+                <View key={sport.name} style={styles.card}>
+                  <Text style={styles.cardName}>{sport.name}</Text>
+                  <View style={styles.cardStatusPill}>
+                    <View style={styles.statusDot} />
+                    <Text style={styles.cardStatus}>{sport.status}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            {/* ── Spacer fills remaining space ── */}
+            <View style={{ flex: 1, minHeight: Spacing.lg }} />
+
+            {/* ── Pagination dots ── */}
+            <View style={styles.pagination}>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <View key={i} style={[styles.dot, i === 1 && styles.activeDot]} />
+              ))}
+            </View>
+
+            {/* ── Buttons ── */}
+            <View style={styles.buttons}>
+              <Link href="/welcome/WelcomePage1" asChild>
+                <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.75}>
+                  <Text style={styles.secondaryButtonText}>‹ Back</Text>
+                </TouchableOpacity>
+              </Link>
+
+              <Link href="/welcome/WelcomePage3" asChild>
+                <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
+                  <Text style={styles.primaryButtonText}>Next ›</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
           </ScrollView>
-
-          {/* ── Pagination dots ── */}
-          <View style={styles.pagination}>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <View key={i} style={[styles.dot, i === 1 && styles.activeDot]} />
-            ))}
-          </View>
-
-          {/* ── Buttons ── */}
-          <View style={styles.buttons}>
-            <Link href="/welcome/WelcomePage1" asChild>
-              <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.75}>
-                <Text style={styles.secondaryButtonText}>‹ Back</Text>
-              </TouchableOpacity>
-            </Link>
-
-            <Link href="/welcome/WelcomePage3" asChild>
-              <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
-                <Text style={styles.primaryButtonText}>Next ›</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
-
         </SafeAreaView>
       </View>
     </View>
@@ -131,6 +133,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingBottom: 40,
   },
 
@@ -222,12 +227,8 @@ const styles = StyleSheet.create({
   },
 
   /* ── Cards ── */
-  scroll: {
-    flex: 1,
-  },
   cardList: {
     gap: Spacing.md,
-    paddingBottom: Spacing.sm,
   },
   card: {
     backgroundColor: Color.colorSurface,

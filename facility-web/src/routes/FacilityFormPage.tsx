@@ -43,7 +43,6 @@ export default function FacilityFormPage() {
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(DEFAULT_SLOT_DURATION_MINUTES);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
-  const [status, setStatus] = useState<Facility["status"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(isEdit);
@@ -71,7 +70,6 @@ export default function FacilityFormPage() {
       setClosingTime(f.closingTime ?? "22:00");
       setSlotDurationMinutes(f.slotDurationMinutes ?? DEFAULT_SLOT_DURATION_MINUTES);
       setPhotoUrls(f.photoUrls ?? []);
-      setStatus(f.status);
       setLoading(false);
     });
   }, [id]);
@@ -164,19 +162,22 @@ export default function FacilityFormPage() {
       };
 
       if (isEdit && id) {
-        // Rules require any owner update to resubmit as 'pending' — an
-        // approved listing can only be edited by an admin.
-        await updateDoc(doc(db, "facilities", id), { ...payload, status: "pending" });
+        // No admin review gate — an owner's edit goes live immediately.
+        await updateDoc(doc(db, "facilities", id), {
+          ...payload,
+          status: "approved",
+          approvedAt: serverTimestamp(),
+        });
       } else {
         await setDoc(doc(collection(db, "facilities")), {
           ...payload,
           ownerId: user.uid,
           ownerName: user.displayName ?? "",
           ownerEmail: user.email ?? "",
-          status: "pending",
+          status: "approved",
           rejectionReason: null,
           createdAt: serverTimestamp(),
-          approvedAt: null,
+          approvedAt: serverTimestamp(),
         });
       }
       navigate("/dashboard");
@@ -189,22 +190,11 @@ export default function FacilityFormPage() {
 
   if (loading) return <p className="empty-text">Loading…</p>;
 
-  if (isEdit && status === "approved") {
-    return (
-      <div className="card">
-        <p className="meta">
-          This ground is live and approved. Contact support to make changes, or withdraw it from
-          the dashboard first.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="page-header">
         <h2>{isEdit ? "Edit ground" : "Register a ground"}</h2>
-        <p>Listings are reviewed before they go live to matched players.</p>
+        <p>Your listing goes live to matched players as soon as you save it.</p>
       </div>
 
       <div className="card">
@@ -353,7 +343,7 @@ export default function FacilityFormPage() {
           </div>
           {error && <div className="error-text">{error}</div>}
           <button className="btn" type="submit" disabled={busy || uploadingPhotos}>
-            {busy ? "Saving…" : isEdit ? "Save & resubmit for review" : "Submit for review"}
+            {busy ? "Saving…" : isEdit ? "Save changes" : "Register ground"}
           </button>
         </form>
       </div>

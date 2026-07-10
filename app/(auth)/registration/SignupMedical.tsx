@@ -5,6 +5,7 @@ import * as React from "react";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -65,102 +66,103 @@ export default function SignupMedical() {
         style={styles.background}
       />
       <SafeAreaView style={styles.safeArea}>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.brand}>
-            <Text style={styles.brandB}>B</Text>
-            {"  "}PLAY BUDDY
-          </Text>
-        </View>
-
-        {/* Title */}
-        <View style={styles.titleBlock}>
-          <Text style={styles.joinText}>
-            Join{" "}
-            <Text style={styles.joinBrand}>PLAY BUDDY</Text>
-          </Text>
-          <Text style={styles.subtitle}>Complete your profile to start finding buddies</Text>
-        </View>
-
-        {/* Step Indicator */}
-        <StepIndicator currentStep={3} />
-
-        {/* Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Medical & Emergency</Text>
-          <Text style={styles.cardSubtitle}>This information helps keep you safe during play</Text>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Emergency Contact Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Full name"
-              placeholderTextColor={Color.colorGray300}
-              value={contactName}
-              onChangeText={setContactName}
-            />
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.brand}>
+              <Text style={styles.brandB}>B</Text>
+              {"  "}PLAY BUDDY
+            </Text>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Emergency Contact Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="+94 *********"
-              placeholderTextColor={Color.colorGray300}
-              keyboardType="phone-pad"
-              value={contactPhone}
-              onChangeText={setContactPhone}
-            />
+          {/* Title */}
+          <View style={styles.titleBlock}>
+            <Text style={styles.joinText}>
+              Join{" "}
+              <Text style={styles.joinBrand}>PLAY BUDDY</Text>
+            </Text>
+            <Text style={styles.subtitle}>Complete your profile to start finding buddies</Text>
           </View>
 
-          <View style={styles.rowFields}>
-            <View style={[styles.fieldGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Blood Type</Text>
+          {/* Step Indicator */}
+          <StepIndicator currentStep={3} />
+
+          {/* Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Medical & Emergency</Text>
+            <Text style={styles.cardSubtitle}>This information helps keep you safe during play</Text>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Emergency Contact Name</Text>
               <TextInput
                 style={styles.input}
-                placeholder="eg. O+"
+                placeholder="Full name"
                 placeholderTextColor={Color.colorGray300}
-                value={bloodType}
-                onChangeText={setBloodType}
+                value={contactName}
+                onChangeText={setContactName}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Emergency Contact Number</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+94 *********"
+                placeholderTextColor={Color.colorGray300}
+                keyboardType="phone-pad"
+                value={contactPhone}
+                onChangeText={setContactPhone}
+              />
+            </View>
+
+            <View style={styles.rowFields}>
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Blood Type</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="eg. O+"
+                  placeholderTextColor={Color.colorGray300}
+                  value={bloodType}
+                  onChangeText={setBloodType}
+                />
+              </View>
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Medical Conditions (Optional)</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Any conditions we should know about..."
+                placeholderTextColor={Color.colorGray300}
+                multiline
+                numberOfLines={3}
+                value={conditions}
+                onChangeText={setConditions}
               />
             </View>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Medical Conditions (Optional)</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Any conditions we should know about..."
-              placeholderTextColor={Color.colorGray300}
-              multiline
-              numberOfLines={3}
-              value={conditions}
-              onChangeText={setConditions}
-            />
+          {/* Bottom Nav */}
+          <View style={styles.bottomNav}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.backText}>{"< Back"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.continueBtn}
+              activeOpacity={0.85}
+              onPress={handleUpdateMedical}
+            >
+              <Text style={styles.continueBtnText}>Continue  ›</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Spacer */}
-        <View style={{ flex: 1 }} />
-
-        {/* Bottom Nav */}
-        <View style={styles.bottomNav}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backText}>{"< Back"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.continueBtn}
-            activeOpacity={0.85}
-            onPress={handleUpdateMedical}
-          >
-            <Text style={styles.continueBtnText}>Continue  ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Dots */}
-        <PageDots total={4} current={3} />
-
+          {/* Dots */}
+          <PageDots total={4} current={3} />
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -169,10 +171,10 @@ export default function SignupMedical() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Color.colorBlack },
   background: { ...StyleSheet.absoluteFillObject },
-  safeArea: {
-    flex: 1,
+  safeArea: { flex: 1 },
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 8,
+    paddingBottom: 32,
   },
 
   header: { marginTop: 16, marginBottom: 8 },

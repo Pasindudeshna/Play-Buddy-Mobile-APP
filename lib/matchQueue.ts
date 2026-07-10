@@ -41,21 +41,27 @@ export type MatchCandidate = {
 };
 
 const QUEUE_TICKET_TTL_MINUTES = 30;
-const SLOT_DURATION_MINUTES = 60;
 
-/** Combines a calendar day with a "HH:MM" time chip label into a concrete {start, end} range. */
-export function buildTimeSlot(date: Date, timeLabel: string): TimeSlot {
-  const [hours, minutes] = timeLabel.split(":").map((n) => parseInt(n, 10));
+/** Combines a calendar day with user-picked start/end times (only the time-of-day is used from each) into a concrete {start, end} range. */
+export function buildTimeSlot(date: Date, startTime: Date, endTime: Date): TimeSlot {
   const start = new Date(
     date.getFullYear(),
     date.getMonth(),
     date.getDate(),
-    hours || 0,
-    minutes || 0,
+    startTime.getHours(),
+    startTime.getMinutes(),
     0,
     0
   );
-  const end = new Date(start.getTime() + SLOT_DURATION_MINUTES * 60 * 1000);
+  const end = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    endTime.getHours(),
+    endTime.getMinutes(),
+    0,
+    0
+  );
   return { start, end };
 }
 
