@@ -15,6 +15,7 @@ import { SPORTS, type SportId } from "../lib/sports";
 import { geohashFor } from "../lib/geo";
 import { uploadImageToCloudinary } from "../lib/cloudinary";
 import {
+  DEFAULT_COURTS_COUNT,
   DEFAULT_CURRENCY,
   DEFAULT_SLOT_DURATION_MINUTES,
   type Facility,
@@ -41,6 +42,7 @@ export default function FacilityFormPage() {
   const [openingTime, setOpeningTime] = useState("06:00");
   const [closingTime, setClosingTime] = useState("22:00");
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(DEFAULT_SLOT_DURATION_MINUTES);
+  const [courtsCount, setCourtsCount] = useState(String(DEFAULT_COURTS_COUNT));
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export default function FacilityFormPage() {
       setOpeningTime(f.openingTime ?? "06:00");
       setClosingTime(f.closingTime ?? "22:00");
       setSlotDurationMinutes(f.slotDurationMinutes ?? DEFAULT_SLOT_DURATION_MINUTES);
+      setCourtsCount(String(f.courtsCount ?? DEFAULT_COURTS_COUNT));
       setPhotoUrls(f.photoUrls ?? []);
       setLoading(false);
     });
@@ -139,6 +142,11 @@ export default function FacilityFormPage() {
       setError("Closing time must be after opening time.");
       return;
     }
+    const courts = Number(courtsCount);
+    if (!Number.isInteger(courts) || courts < 1) {
+      setError("Enter a valid number of courts/slots (1 or more).");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -157,6 +165,7 @@ export default function FacilityFormPage() {
         openingTime,
         closingTime,
         slotDurationMinutes,
+        courtsCount: courts,
         photoUrls,
         updatedAt: serverTimestamp(),
       };
@@ -294,6 +303,23 @@ export default function FacilityFormPage() {
                 ))}
               </select>
             </div>
+          </div>
+          <div className="field">
+            <label>Number of courts / slots</label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              placeholder="e.g. 2"
+              value={courtsCount}
+              onChange={(e) => setCourtsCount(e.target.value)}
+              required
+            />
+            <p className="meta">
+              How many of this ground can be booked in parallel at the same time (e.g. 3
+              badminton courts). A time slot only shows as full once this many bookings exist
+              for it.
+            </p>
           </div>
           <div className="field">
             <label>Photos</label>

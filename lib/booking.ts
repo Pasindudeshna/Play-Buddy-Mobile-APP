@@ -1,7 +1,6 @@
 import {
   collection,
   doc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -12,6 +11,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { callMatchApi } from "./matchApi";
 
 export type FacilityStatus = "pending" | "approved" | "rejected";
 
@@ -32,6 +32,8 @@ export type Facility = {
   openingTime: string; // "HH:MM"
   closingTime: string; // "HH:MM"
   slotDurationMinutes: number;
+  /** Number of courts/grounds bookable in parallel. Older facilities predating this field are treated as 1 (see getSlotAvailability). */
+  courtsCount?: number;
 };
 
 export type BookingStatus = "confirmed" | "cancelled";
@@ -127,20 +129,16 @@ export function subscribeToApprovedFacilities(
   );
 }
 
-/** Start times already booked (and not cancelled) for a facility on a given date. */
-export async function getBookedSlotTimes(facilityId: string, date: string): Promise<Set<string>> {
-  const q = query(
-    collection(db, "bookings"),
-    where("facilityId", "==", facilityId),
-    where("date", "==", date)
-  );
-  const snap = await getDocs(q);
-  const booked = new Set<string>();
-  snap.forEach((d) => {
-    const b = d.data() as Booking;
-    if (b.status !== "cancelled") booked.add(b.startTime);
-  });
-  return booked;
+/**
+ * Start times that are fully booked (courtsCount reached) for a facility on
+ * a given date. Goes through a server function rather than querying
+ * `bookings` directly — firestore.rules only lets a booking be read by its
+ * own booker/owner/match participant, so a client-side query spanning every
+ * other player's bookings for this facility+date would be rejected outright.
+ */
+export async function getFullSlotTimes(facilityId: string, date: string): Promise<Set<string>> {
+  const { fullSlots } = await callMatchApi("/api/get-slot-availability", { facilityId, date });
+  return new Set<string>(fullSlots ?? []);
 }
 
 /**

@@ -162,7 +162,13 @@ async function writeCandidates(
 async function finalizeMatch(db: Firestore, matchId: string): Promise<void> {
   const matchSnap = await db.doc(`matches/${matchId}`).get();
   if (!matchSnap.exists) return;
-  const match = matchSnap.data() as { sport: string; midpoint: GeoPoint; playerCoords?: Record<string, GeoPoint> };
+  const match = matchSnap.data() as {
+    sport: string;
+    midpoint: GeoPoint;
+    playerCoords?: Record<string, GeoPoint>;
+    date: string;
+    timeSlot: { start: Timestamp; end: Timestamp };
+  };
   await createVenueOptionsForMatch(db, matchId, match);
 }
 

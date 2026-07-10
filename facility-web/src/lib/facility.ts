@@ -30,7 +30,10 @@ export type Facility = {
   closingTime: string;
   /** Booking slot granularity in minutes (e.g. 30, 60, 90, 120). */
   slotDurationMinutes: number;
+  /** Number of courts/grounds bookable in parallel — a time slot is only "full" once this many bookings exist for it. */
+  courtsCount: number;
 };
 
 export const DEFAULT_SLOT_DURATION_MINUTES = 60;
 export const DEFAULT_CURRENCY = "LKR";
+export const DEFAULT_COURTS_COUNT = 1;

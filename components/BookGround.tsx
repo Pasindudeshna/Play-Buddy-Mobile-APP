@@ -19,7 +19,7 @@ import { auth, db } from "../firebaseConfig";
 import {
   createBooking,
   generateSlotStartTimes,
-  getBookedSlotTimes,
+  getFullSlotTimes,
   isBookable,
   slotEndTime,
   subscribeToApprovedFacilities,
@@ -92,7 +92,7 @@ export default function BookGround({
     setLoadingSlots(true);
     setBookingError(null);
     setConfirmedSlot(null);
-    getBookedSlotTimes(selectedFacility.id, toDateKey(selectedDate))
+    getFullSlotTimes(selectedFacility.id, toDateKey(selectedDate))
       .then(setBookedSlots)
       .finally(() => setLoadingSlots(false));
   }, [selectedFacility, selectedDate]);

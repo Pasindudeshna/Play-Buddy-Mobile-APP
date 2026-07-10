@@ -1,4 +1,5 @@
-import { Firestore, GeoPoint } from "firebase-admin/firestore";
+import { Firestore, GeoPoint, Timestamp } from "firebase-admin/firestore";
+import { countOverlappingBookings } from "./availability";
 
 /** Maps our internal sport ids to a Places "keyword" search term. */
 const SPORT_KEYWORDS: Record<string, string> = {
@@ -45,6 +46,10 @@ function fairnessScore(distances: Record<string, number>): number {
   return Math.max(...Object.values(distances));
 }
 
+function formatTime(ts: Timestamp): string {
+  return ts.toDate().toISOString().slice(11, 16);
+}
+
 type Facility = {
   name: string;
   address: string;
@@ -52,6 +57,8 @@ type Facility = {
   sports: string[];
   status: "pending" | "approved" | "rejected";
   photoUrls?: string[];
+  /** Courts/grounds bookable in parallel. Missing on facilities registered before this field existed — treated as 1. */
+  courtsCount?: number;
 };
 
 type RegisteredVenue = {
@@ -63,12 +70,21 @@ type RegisteredVenue = {
   distanceFromMidpointKm: number;
 };
 
-/** Import lazily so this module doesn't need geofire-common unless it's actually called. */
+/**
+ * Import lazily so this module doesn't need geofire-common unless it's
+ * actually called. Excludes facilities with no free capacity for the
+ * match's date/time (bookings already at courtsCount) — checked nearest
+ * candidate first so we stop hitting the bookings collection as soon as
+ * `maxResults` genuinely-available grounds are found.
+ */
 async function findRegisteredFacilities(
   db: Firestore,
   midpoint: GeoPoint,
   sport: string,
-  maxResults: number
+  maxResults: number,
+  date: string,
+  startTime: string,
+  endTime: string
 ): Promise<RegisteredVenue[]> {
   const { geohashQueryBounds } = await import("geofire-common");
   const center: [number, number] = [midpoint.latitude, midpoint.longitude];
@@ -88,7 +104,7 @@ async function findRegisteredFacilities(
   );
 
   const seen = new Set<string>();
-  const candidates: (RegisteredVenue & { _sort: number })[] = [];
+  const candidates: (RegisteredVenue & { _sort: number; _courtsCount: number })[] = [];
 
   for (const snap of snapshots) {
     for (const docSnap of snap.docs) {
@@ -112,12 +128,23 @@ async function findRegisteredFacilities(
         photoUrl: facility.photoUrls?.[0] ?? null,
         distanceFromMidpointKm: Math.round(distanceKm * 10) / 10,
         _sort: distanceKm,
+        _courtsCount: facility.courtsCount ?? 1,
       });
     }
   }
 
   candidates.sort((a, b) => a._sort - b._sort);
-  return candidates.slice(0, maxResults).map(({ _sort, ...venue }) => venue);
+
+  const available: RegisteredVenue[] = [];
+  for (const candidate of candidates) {
+    if (available.length >= maxResults) break;
+    const bookedCount = await countOverlappingBookings(db, candidate.id, date, startTime, endTime);
+    if (bookedCount < candidate._courtsCount) {
+      const { _sort, _courtsCount, ...venue } = candidate;
+      available.push(venue);
+    }
+  }
+  return available;
 }
 
 type PlacesNearbyResult = {
@@ -154,13 +181,27 @@ export type VenueOptionDoc = {
 export async function createVenueOptionsForMatch(
   db: Firestore,
   matchId: string,
-  match: { sport: string; midpoint: GeoPoint; playerCoords?: Record<string, GeoPoint> }
+  match: {
+    sport: string;
+    midpoint: GeoPoint;
+    playerCoords?: Record<string, GeoPoint>;
+    date: string;
+    timeSlot: { start: Timestamp; end: Timestamp };
+  }
 ): Promise<void> {
   const midpoint = match.midpoint;
   const playerCoords = match.playerCoords ?? {};
   const keyword = SPORT_KEYWORDS[match.sport] ?? match.sport;
 
-  const registered = await findRegisteredFacilities(db, midpoint, match.sport, MAX_VENUE_OPTIONS);
+  const registered = await findRegisteredFacilities(
+    db,
+    midpoint,
+    match.sport,
+    MAX_VENUE_OPTIONS,
+    match.date,
+    formatTime(match.timeSlot.start),
+    formatTime(match.timeSlot.end)
+  );
 
   const venues: (VenueOptionDoc & { _id: string })[] = registered.map((facility) => ({
     _id: facility.id,
@@ -261,6 +302,8 @@ export async function syncRegisteredVenues(db: Firestore, uid: string, matchId: 
     midpoint: GeoPoint;
     playerCoords?: Record<string, GeoPoint>;
     selectedVenueId: string | null;
+    date: string;
+    timeSlot: { start: Timestamp; end: Timestamp };
   };
   if (!match.players.includes(uid)) {
     throw new Error("permission-denied:Only matched players can refresh venues.");
@@ -271,7 +314,15 @@ export async function syncRegisteredVenues(db: Firestore, uid: string, matchId: 
   const existingSnap = await venuesRef.get();
   const existingIds = new Set(existingSnap.docs.map((d) => d.id));
 
-  const registered = await findRegisteredFacilities(db, match.midpoint, match.sport, MAX_VENUE_OPTIONS);
+  const registered = await findRegisteredFacilities(
+    db,
+    match.midpoint,
+    match.sport,
+    MAX_VENUE_OPTIONS,
+    match.date,
+    formatTime(match.timeSlot.start),
+    formatTime(match.timeSlot.end)
+  );
   const missing = registered.filter((facility) => !existingIds.has(facility.id));
   if (missing.length === 0) return;
 
